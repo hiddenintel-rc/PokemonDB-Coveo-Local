@@ -1,0 +1,15 @@
+# Repository root — use with `git init` here (app + docs). Nested rules in `web/.gitignore`
+# still apply under `web/` (e.g. `.env`, `node_modules`, `.next`).
+
+# Secrets at repo root (never commit real values)
+.env
+.env.local
+.env.*.local
+
+# Local scratch / IDE uploads sometimes land under the project folder
+uploads/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,116 @@
+---
+description: Coveo Headless + React patterns and conventions for this project
+globs: **/*.tsx, **/*.ts
+alwaysApply: false
+---
+
+# Coveo Headless + React Patterns
+
+## Engine Setup (do once, export as singleton)
+
+**Next.js (this repo):** use `process.env.NEXT_PUBLIC_COVEO_ORG_ID` and `NEXT_PUBLIC_COVEO_API_KEY` in `web/src/coveo/search-instance.ts`. For Vite, use `import.meta.env.VITE_*` instead.
+
+```ts
+// Conceptual — see web/src/coveo/search-instance.ts
+import { buildSearchEngine } from '@coveo/headless';
+
+export const engine = buildSearchEngine({
+  configuration: {
+    organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID!,
+    accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY!,
+    search: {
+      searchHub: process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? 'PokemonSearch',
+    },
+  },
+});
+```
+
+## Controller Pattern (one custom hook per controller)
+
+```tsx
+// src/hooks/useSearchBox.ts
+import { buildSearchBox } from '@coveo/headless';
+import { useEffect, useState } from 'react';
+import { engine } from '../coveo/engine';
+
+const controller = buildSearchBox(engine);
+
+export function useSearchBox() {
+  const [state, setState] = useState(controller.state);
+  useEffect(() => controller.subscribe(() => setState(controller.state)), []);
+  return { state, controller };
+}
+```
+
+- Controllers are built **once** outside the component (module scope or context)
+- Subscribe in `useEffect`, unsubscribe via returned cleanup function
+- Never rebuild the engine or controller on each render
+
+## Facet Controller
+
+```tsx
+import { buildFacet } from '@coveo/headless';
+import { engine } from '../coveo/engine';
+
+export const typeFacet = buildFacet(engine, {
+  options: { field: 'pokemontype', numberOfValues: 25 },
+});
+
+export const generationFacet = buildFacet(engine, {
+  options: { field: 'pokemongeneration', numberOfValues: 15 },
+});
+```
+
+## Result List + Image Display
+
+Configure **`fieldsToInclude`** on **`buildResultList`** so custom indexed fields appear on each hit (`web/src/coveo/search-instance.ts`). Without it, **`result.raw`** typically has **default** fields only—even if **Content Browser** shows `pictureuri`, `pokemontype`, etc.
+
+```tsx
+buildResultList(engine, {
+  options: {
+    fieldsToInclude: [
+      'pictureuri',
+      'syspictureuri',
+      'pokemontype',
+      'pokemongeneration',
+      'picture_uri',
+      'pokemon_generation',
+    ],
+  },
+});
+
+// Access field values from result.raw (after fieldsToInclude)
+const imageUrl =
+  (result.raw['pictureuri'] as string | undefined) ??
+  (result.raw['picture_uri'] as string | undefined) ??
+  (result.raw['syspictureuri'] as string | undefined);
+const types = result.raw['pokemontype'] as string | string[] | undefined;
+```
+
+- Field names in `result.raw` are lowercase
+
+## executeFirstSearch
+
+Always call `engine.executeFirstSearch()` once after initialization, not on every render.
+
+## Environment Variables
+
+Next.js: `NEXT_PUBLIC_COVEO_ORG_ID`, `NEXT_PUBLIC_COVEO_API_KEY` in `web/.env` or `web/.env.local` (gitignored); `web/.env.example` documents keys only — never commit secrets.
+
+## File Structure Convention
+
+```
+src/
+  coveo/
+    engine.ts          # singleton engine
+    controllers.ts     # all controller singletons
+  hooks/
+    useSearchBox.ts
+    useResultList.ts
+    useFacet.ts
+  components/
+    SearchBox.tsx
+    ResultList.tsx
+    PokemonCard.tsx    # single result with image
+    FacetPanel.tsx
+```

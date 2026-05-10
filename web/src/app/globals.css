@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Product filters (facets) — styling hooks for SearchInterface.tsx
+ *
+ * Regions:
+ *   [data-region="product-filters"]     Sidebar wrapper
+ * Panels (collapsed by default — native <details>):
+ *   [data-product-filter="pokemon-type"]
+ *   [data-product-filter="pokemon-generation"]
+ *   [data-product-filter="pokemon-ability"]
+ * BEM-style classes on each panel: .product-filter, .product-filter__summary,
+ *   .product-filter__panel, .product-filter__options, .product-filter__option,
+ *   .product-filter__control, .product-filter__checkbox, .product-filter__option-label,
+ *   .product-filter__count, .product-filter__disclosure-icon
+ * Per-option value (facet value string): [data-filter-option="…"]
+ *
+ * Example overrides:
+ *   [data-product-filter="pokemon-type"] .product-filter__heading { … }
+ */

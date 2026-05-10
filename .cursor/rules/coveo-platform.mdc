@@ -1,0 +1,75 @@
+---
+description: Core Coveo platform knowledge for the Pokemon Challenge project
+alwaysApply: true
+---
+
+# Coveo Platform — Pokemon Challenge Context
+
+## Challenge Goal
+Build a Coveo-powered search page that indexes **pokemondb.net** and displays Pokemon with:
+- Facet filter by **Pokemon Type**
+- Facet filter by **Pokemon Generation**
+- Pokemon **picture displayed** directly in search results
+
+Stack: **@coveo/headless** + **React** (TypeScript)
+
+---
+
+## Key Platform Concepts
+
+### Organization & Auth
+- **Organization ID**: unique identifier for your Coveo org (e.g. `mycoveoorganizationa1b23c`)
+- **API Key**: for local dev, use an Anonymous search template API key. Never expose keys tagged "Must remain private"
+- **Search Token**: server-generated token preferred for production; use API key for local dev
+
+### Sources
+- **Web Crawler source**: crawls URLs automatically. Use URL rules to include only Pokemon pages (`/pokedex/` path) and exclude Moves, Types, Items, etc.
+- **Push source**: programmatic push via Push API. Alternative if web crawler cannot isolate the right pages.
+- **Tip from challenge**: create a single-pokemon source for fast iteration during development
+
+### Web Scraping Configuration
+- JSON config attached to a web source that controls what content is extracted
+- Use it to extract specific metadata fields (type, generation, image URL) from HTML elements
+- CSS selectors target the exact table cells / elements you want
+- Attach it in the Coveo Admin Console under Sources → your source → Web Scraping Config
+
+### Fields
+- Coveo auto-maps metadata to fields with matching names
+- Custom fields must be created in Admin Console → Content → Fields BEFORE they show up in facets
+- Relevant custom fields to create for this project:
+  - `pokemontype` (multi-value, string) — Pokemon element type(s)
+  - `pokemongeneration` (string) — Generation number/name
+  - `pictureuri` (string) — URL of Pokemon's official sprite/image
+- Default fields: `title`, `uri`, `date`, `filetype`, `language` (auto-populated)
+
+### Facets
+- Facets filter results by field values
+- Field must exist in the index AND be marked **Facet: true** in Admin Console → Fields
+
+### Search API
+- Endpoint: `https://platform.cloud.coveo.com/rest/search/v2` (US)
+- All queries go through a **Query Pipeline** which can apply ranking rules, stop words, etc.
+
+---
+
+## Coveo Admin Console URLs
+- Main: https://platform.cloud.coveo.com/admin/
+- Sources: `#/orgid/content/sources/`
+- Fields: `#/orgid/content/fields/`
+- Content Browser (inspect indexed items): `#/orgid/content/browser/`
+- Search Pages (built-in editor): `#/orgid/search/pages/`
+
+---
+
+## pokemondb.net Structure
+- Individual Pokemon pages: `https://pokemondb.net/pokedex/{name}` — INCLUDE these
+- Exclude: `/move/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
+- Pokemon image: found in `<div class="infocard-lg">` or the main `<img>` in the Pokedex entry table
+- Pokemon type(s): in the table row labeled "Type"
+- Pokemon generation: in the table row labeled "Generation"
+
+---
+
+## NPM Packages
+- `@coveo/headless` — state management, engine, controllers (pinned to `3.50.1`)
+- No separate React wrapper needed for client-side rendering; use vanilla headless with React hooks

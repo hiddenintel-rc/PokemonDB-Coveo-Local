@@ -1,0 +1,163 @@
+---
+description: Coveo Web Crawler and indexing configuration guidance for pokemondb.net
+alwaysApply: false
+globs: **/*.json
+---
+
+# Coveo Web Crawler — pokemondb.net Indexing
+
+## Crawling rules (Admin → Source → Configuration → Crawling rules)
+
+Individual Pokémon pages on pokemondb.net look like `https://pokemondb.net/pokedex/bulbasaur` (exactly **one** path segment after `/pokedex/`). List/hub pages and game dexes use extra segments (e.g. `/pokedex/game/scarlet-violet`) or fixed slugs (`all`, `national`). Coveo applies rules to **full URLs**; see [Add a Web source — Crawling rules](https://docs.coveo.com/en/malf0160/index-content/add-a-web-source#crawling-rules-subtab).
+
+### 1. Starting URLs
+
+Set **Starting URL** to a Pokédex hub so discovery stays under `/pokedex/` and matches your inclusion rule:
+
+- Recommended: `https://pokemondb.net/pokedex/all` (links to every species page)
+
+Avoid keeping only `https://pokemondb.net/` as the sole start URL if you use a **narrow inclusion** list — the homepage may not match your inclusion pattern and can be filtered incorrectly. If you keep the site root, add a second starting URL: `https://pokemondb.net/pokedex/all`.
+
+### 2. Inclusions
+
+**Recommended for the challenge (“only actual Pokémon pages”):** use a **regex** inclusion so only **one path segment** after `/pokedex/` matches (species slugs like `bulbasaur`). See **§4 Alternative: regex** below. That avoids indexing `…/pokedex/foo/moves/9`, `…/game/…`, etc., without maintaining a long exclusion list.
+
+**Broader option (more exclusions needed):** Under **Inclusions**, select **Include non-excluded pages that match at least one rule**, then add:
+
+| Rule type | Value |
+|-----------|--------|
+| **Matches wildcard rule** | `https://pokemondb.net/pokedex/*` |
+
+That keeps crawling under `/pokedex/` but **also** allows subpaths such as **`…/moves/…`** unless you exclude them explicitly (**`contains /moves/`** at minimum).
+
+### 3. Exclusions (required)
+
+Add **Exclusion** rules so list/game pages are not indexed as if they were Pokémon.
+
+**Do not exclude your starting URL.** If **Starting URLs** includes `https://pokemondb.net/pokedex/all`, you must **not** add an exclusion `is` → that same URL — Coveo will show **“Excluded starting URL(s) detected”** and the crawl cannot start correctly (unless you use advanced options like `ExpandBeforeFiltering`; simplest fix is to remove that exclusion). You may get **one** indexed hub document (`/pokedex/all`); filter it out in the query pipeline or UI if needed.
+
+**Pokédex hubs (exact URLs — use “is”) — only if they are not used as a starting URL:**
+
+- `https://pokemondb.net/pokedex/national` (safe if your start URL is `/pokedex/all`)
+- Omit `/pokedex/all` from exclusions when it is the starting address (see above)
+
+**Multi-segment Pokédex sections (wildcard — “matches wildcard rule”):**
+
+- `https://pokemondb.net/pokedex/game/*`
+- `https://pokemondb.net/pokedex/stats/*` (if present / if you see these in Content Browser)
+
+**Learnsets (required — easy to miss):** Pokémon move *learnset* pages use **`/moves/`** (plural), e.g. `…/pokedex/arctibax/moves/9`. A rule **`contains /move/`** matches the site’s **`/move/…`** encyclopedia URLs but **does not** match **`/moves/`**. Add **`contains /moves/`** (or wildcard `https://pokemondb.net/pokedex/*/moves/*`) so those pages are excluded per challenge (“exclude … Moves”).
+
+**Other site areas** (species pages link to these; belt-and-suspenders **contains** rules work well):
+
+| Rule type | String |
+|-----------|--------|
+| **Contains** | `/move/` |
+| **Contains** | `/moves/` |
+| **Contains** | `/type/` |
+| **Contains** | `/ability/` |
+| **Contains** | `/item/` |
+| **Contains** | `/mechanic/` |
+| **Contains** | `/pokebase/` |
+| **Contains** | `/evolution/` |
+
+After the first **rebuild/rescan**, open **Content Browser** and add exclusions for any remaining non-species URLs (e.g. other `/pokedex/...` hubs you see).
+
+### 4. Alternative: regex (advanced)
+
+One inclusion regex that matches only single-segment `/pokedex/{slug}` URLs (still add explicit exclusions for `all` and `national` if those slugs match):
+
+`^https://pokemondb\.net/pokedex/[a-z0-9-]+$`
+
+Test regex separately (e.g. [regex101](https://regex101.com/)) before saving.
+
+---
+
+**Tip**: Create a second **test** source with starting URL `https://pokemondb.net/pokedex/bulbasaur` and the same inclusion/exclusion logic to iterate quickly without recrawling the full dex.
+
+---
+
+## Web Scraping Configuration (JSON)
+
+Attach to the source to extract custom metadata. Rules below are aligned with **current** species pages (verified against `/pokedex/cascoon` HTML, May 2026).
+
+### Where the data lives on the page
+
+| Field | On Cascoon’s HTML | Scraping note |
+|-------|-------------------|---------------|
+| **Type(s)** | First **Pokédex data** `table.vitals-table`: row **National №**, row **Type** with `a.type-icon` (e.g. Bug). | Do **not** use a global `td a.type-icon` rule — the **type defenses** grids also use `type-icon` and would poison facets. Scope to the **first** Pokédex vitals table + **Type** row. |
+| **Generation** | There is **no** “Generation” row in that vitals table on Cascoon. Intro line: `… introduced in <abbr …>Generation 3</abbr>.` | A selector that only looks for `th` **Generation** in vitals will be **empty** on many Pokémon. Prefer the **intro** `<abbr>` after `<h1>` (see JSON). |
+| **Picture** | `<meta property="og:image" content="https://img.pokemondb.net/artwork/large/cascoon.jpg">` and/or `a[rel="lightbox"][href*="artwork"]` around main artwork. | Old `infocard-lg` markup is **not** used on this layout — use **og:image** (if your crawler indexes `<head>`) or the **lightbox** artwork link. |
+
+### Recommended `subItems` (MetaData)
+
+Coveo’s extractor may **not** support jQuery-style `:has()` / `:contains()`. Prefer **structural** selectors; validate in Content Browser and adjust `nth-child` if a future redesign changes row order.
+
+```json
+{
+  "subItems": [
+    {
+      "type": "MetaData",
+      "rules": [
+        {
+          "field": "pokemontype",
+          "selector": "main table.vitals-table:first-of-type tr:nth-child(2) td a.type-icon",
+          "attribute": "text"
+        },
+        {
+          "field": "pokemongeneration",
+          "selector": "main > h1 ~ p:first-of-type abbr",
+          "attribute": "text"
+        },
+        {
+          "field": "pictureuri",
+          "selector": "meta[property=\"og:image\"]",
+          "attribute": "content"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**If `pictureuri` is empty** (connector does not parse `<head>` meta tags), replace the `pictureuri` rule with:
+
+```json
+{
+  "field": "pictureuri",
+  "selector": "main a[rel=\"lightbox\"][href*=\"artwork\"]",
+  "attribute": "href"
+}
+```
+
+> After saving scraping JSON: **rebuild** the Web source, then spot-check **Cascoon** (and one **dual-type** Pokémon, e.g. Bulbasaur) in Content Browser for all three fields.
+
+---
+
+## Field Configuration (Admin Console → Content → Fields)
+
+Create the following fields if they don't already exist:
+
+| Field Name       | Type   | Multi-value | Facet | Free text | Notes                         |
+|------------------|--------|-------------|-------|-----------|-------------------------------|
+| `pokemontype`    | String | Yes         | Yes   | No        | e.g. "Fire", "Water/Flying"   |
+| `pokemongeneration` | String | No       | Yes   | No        | e.g. "Generation I"           |
+| `pictureuri`     | String | No          | No    | No        | Full image URL for the sprite |
+
+After adding fields, **rebuild the source** (full re-crawl) so values are indexed.
+
+---
+
+## Inspecting Indexed Items
+
+1. Admin Console → **Content Browser**
+2. Find a Pokemon item
+3. Click it → **Properties** → **Fields** tab
+4. Verify `pokemontype`, `pokemongeneration`, `pictureuri` have values
+5. If empty: check your Web Scraping Config selectors
+
+---
+
+## Query Pipeline (optional)
+
+A query pipeline can boost relevance. For this challenge, the default pipeline is fine unless you add ML models later (Query Suggest, RGA).
