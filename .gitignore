@@ -13,3 +13,6 @@ uploads/
 .DS_Store
 Thumbs.db
 *.log
+
+# Dependencies (any package under the repo, e.g. web/, tools/seed-ml/)
+node_modules/

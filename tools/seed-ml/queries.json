@@ -1,0 +1,59 @@
+{
+  "$comment": [
+    "Seed corpus for the Coveo ML warm-up runner (seed-ml.ts in this folder).",
+    "Edit freely — every entry is one user session. Three independent buckets:",
+    "  - querySuggestionSeeds : species/ability/type names typed char-by-char so the QS model captures them as queries AND can later suggest them.",
+    "  - facetExerciseSeeds   : query + 1 facet toggle (and submit) per item. Trains facetSelect analytics and gives ART signal on filtered result lists.",
+    "  - naturalLanguageRGASeeds : full-sentence questions submitted as a whole. Drives the RGA model's training/streaming endpoint and citation-click events.",
+    "Keep them small and representative; quantity matters less than variety. The runner can repeat the full set with --loops N."
+  ],
+  "querySuggestionSeeds": [
+    "pikachu",
+    "charizard",
+    "bulbasaur",
+    "squirtle",
+    "mewtwo",
+    "eevee",
+    "snorlax",
+    "dragonite",
+    "gengar",
+    "lucario",
+    "garchomp",
+    "rayquaza",
+    "char",
+    "pi",
+    "drag",
+    "fire",
+    "water",
+    "grass",
+    "electric",
+    "ghost",
+    "dragon",
+    "intimidate",
+    "levitate",
+    "starter",
+    "legendary"
+  ],
+  "facetExerciseSeeds": [
+    { "query": "fire", "facetId": "pokemontype", "value": "Fire" },
+    { "query": "water", "facetId": "pokemontype", "value": "Water" },
+    { "query": "dragon", "facetId": "pokemontype", "value": "Dragon" },
+    { "query": "ghost", "facetId": "pokemontype", "value": "Ghost" },
+    { "query": "starter", "facetId": "pokemongeneration", "value": "Generation 1" },
+    { "query": "legendary", "facetId": "pokemongeneration", "value": "Generation 3" },
+    { "query": "pokemon", "facetId": "pokemonability", "value": "Levitate" },
+    { "query": "pokemon", "facetId": "pokemonability", "value": "Intimidate" }
+  ],
+  "naturalLanguageRGASeeds": [
+    "which Pokemon learn Bulk Up",
+    "show me Dragon type Pokemon",
+    "what does Charizard evolve from",
+    "best Generation 1 starter",
+    "which Pokemon have the Levitate ability",
+    "list Fire type Pokemon from Generation 2",
+    "how strong is Mewtwo",
+    "what are the abilities of Garchomp",
+    "which Poison types resist Ground attacks",
+    "fastest Electric Pokemon"
+  ]
+}

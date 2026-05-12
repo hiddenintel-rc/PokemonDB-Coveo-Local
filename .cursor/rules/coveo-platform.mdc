@@ -6,49 +6,80 @@ alwaysApply: true
 # Coveo Platform — Pokemon Challenge Context
 
 ## Challenge Goal
-Build a Coveo-powered search page that indexes **pokemondb.net** and displays Pokemon with:
-- Facet filter by **Pokemon Type**
-- Facet filter by **Pokemon Generation**
-- Pokemon **picture displayed** directly in search results
+Build a Coveo-powered search page that indexes **pokemondb.net** and exposes a relevance-quality search experience. **Current shipped scope (May 2026):**
 
-Stack: **@coveo/headless** + **React** (TypeScript)
+- Facet filter by **Pokémon Type** (`pokemontype`)
+- Facet filter by **Pokémon Generation** (`pokemongeneration`)
+- Facet filter by **Ability** (`pokemonability`)
+- Facet filter by **Base Stat Total** (`pokemonbst`) — 5 labeled community tiers via `buildNumericFacet`
+- Pokémon **picture displayed** directly in each result card
+- **BST badge** chip on each card
+- **Pokémon detail page** (`/pokemon/[slug]`) reachable from each result
+- **Query Suggestions** (`pokemon_QS` model, app combobox)
+- **Relevance Generative Answering** (`pokemon_RGA` model, citations + feedback)
+- **Automatic Relevance Tuning** (`pokemon_ART` model, `documentClick` analytics wired via `buildInteractiveResult`)
+- Optional **Playwright seeder** (`tools/seed-ml/`) to warm up ML models
+
+Stack: **@coveo/headless 3.50.x** + **Next.js 16.2.x (App Router)** + **React 19.2.x** + **Tailwind 4.x** (TypeScript).
 
 ---
 
 ## Key Platform Concepts
 
 ### Organization & Auth
-- **Organization ID**: unique identifier for your Coveo org (e.g. `mycoveoorganizationa1b23c`)
-- **API Key**: for local dev, use an Anonymous search template API key. Never expose keys tagged "Must remain private"
-- **Search Token**: server-generated token preferred for production; use API key for local dev
+- **Organization ID**: unique identifier for your Coveo org (e.g. `roelc_pokemon`)
+- **API Key**: for local dev, use an **Anonymous Search** template API key. Never expose keys tagged "Must remain private"
+- **Search Token**: server-issued token recommended for production; not implemented in this scaffold (deliberate — see `docs/design-decisions.md` DD-3)
 
 ### Sources
-- **Web Crawler source**: crawls URLs automatically. Use URL rules to include only Pokemon pages (`/pokedex/` path) and exclude Moves, Types, Items, etc.
-- **Push source**: programmatic push via Push API. Alternative if web crawler cannot isolate the right pages.
-- **Tip from challenge**: create a single-pokemon source for fast iteration during development
+- **Web (cloud crawler) source**: this project uses one named `PokemonDB Crawl`. URL rules restrict it to `/pokedex/{slug}` species pages and exclude `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
+- **Push source**: alternative — not used here
+- **Tip**: create a second source pointing only at `https://pokemondb.net/pokedex/bulbasaur` for fast scrape/selector iteration without recrawling the full dex
 
 ### Web Scraping Configuration
-- JSON config attached to a web source that controls what content is extracted
-- Use it to extract specific metadata fields (type, generation, image URL) from HTML elements
-- CSS selectors target the exact table cells / elements you want
-- Attach it in the Coveo Admin Console under Sources → your source → Web Scraping Config
+- Attached to a Web source; controls what metadata is extracted from each crawled page
+- Uses **jsoup-flavored CSS selectors** plus Coveo's `::text` and `::attr(...)` pseudo-elements
+- **Stick to standard CSS3** where possible — `:has()` / `:matchesOwn()` have produced asymmetric failures in this project (see `docs/coveo-admin-playbook.md` §1 "Selector style rejected"). Position-anchored `:nth-of-type` plus a unique-ID anchor (e.g. `#dex-stats`) is the proven-stable style
+- Attach in Coveo Admin Console: Sources → your source → **Web Scraping**
 
-### Fields
-- Coveo auto-maps metadata to fields with matching names
-- Custom fields must be created in Admin Console → Content → Fields BEFORE they show up in facets
-- Relevant custom fields to create for this project:
-  - `pokemontype` (multi-value, string) — Pokemon element type(s)
-  - `pokemongeneration` (string) — Generation number/name
-  - `pictureuri` (string) — URL of Pokemon's official sprite/image
-- Default fields: `title`, `uri`, `date`, `filetype`, `language` (auto-populated)
+### Fields (current schema for this project)
+
+Custom fields live in Admin → Content → Fields. **All shipped:**
+
+| Field | Type | Facet | Multi-value | Sortable | Source data |
+|---|---|---|---|---|---|
+| `pokemontype` | String | Yes | Yes | No | Type icons in Pokédex data table |
+| `pokemongeneration` | String | Yes | No | No | `<abbr>` in intro paragraph |
+| `pokemonability` | String | Yes | Yes | No | `a[href^="/ability/"]` links |
+| `pictureuri` | String | No | No | No | `<meta property="og:image">` |
+| `pokemonbst` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Total cell |
+| `pokemonhp` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → HP row |
+| `pokemonattack` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Attack row |
+| `pokemondefense` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Defense row |
+| `pokemonspatk` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Sp. Atk row |
+| `pokemonspdef` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Sp. Def row |
+| `pokemonspeed` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Speed row |
+
+- **Integer 32** is what trial orgs offer (Long isn't exposed). For Pokémon stats (max ~720) it's wildly sufficient.
+- Coveo **auto-locks** Facet=Yes, Sortable=Yes, Multi-value=No when you pick Integer 32 — no manual toggling needed.
+- Per-stat fields are unused by the UI today (only `pokemonbst` is faceted) but kept in the index for future sorting (`buildSort`), ranking expressions (`@pokemonspeed>=120^15`), and per-stat facets.
+- Default fields: `title`, `uri`, `clickUri`, `date`, `filetype`, `language` (auto-populated, no schema work).
 
 ### Facets
-- Facets filter results by field values
-- Field must exist in the index AND be marked **Facet: true** in Admin Console → Fields
+- A field must exist in the index AND be marked **Facet: Yes** in Admin to be facetable
+- Multi-value fields (e.g. `pokemontype`, `pokemonability`) need **Multi-value facet: Yes** so each value gets its own bucket
+- Numeric facets (`buildNumericFacet`) use **range buckets**, not discrete values; the BST facet defines five labeled tiers in `BST_TIERS` in `web/src/coveo/search-instance.ts`
+
+### Machine Learning models (all live)
+- **`pokemon_QS`** — Query Suggestions, associated to default pipeline; status: Limited until traffic accumulates
+- **`pokemon_RGA`** — Relevance Generative Answering, associated; status: Active
+- **`pokemon_ART`** — Automatic Relevance Tuning, associated; status: Build in progress (training on `documentClick` events from `buildInteractiveResult`)
+- Optional warm-up: `tools/seed-ml/` Playwright runner (`npm run seed` from that folder)
 
 ### Search API
-- Endpoint: `https://platform.cloud.coveo.com/rest/search/v2` (US)
-- All queries go through a **Query Pipeline** which can apply ranking rules, stop words, etc.
+- Endpoint: `https://platform.cloud.coveo.com/rest/search/v2` (US region)
+- All queries route through the **default Query Pipeline** which holds: Featured Result rules (Pikachu/starter pins), and the three ML model associations above
+- The detail page (`web/src/coveo/fetch-pokemon-by-slug.ts`) calls this endpoint directly with `analytics: { enabled: false }` so detail-page fetches don't pollute search analytics
 
 ---
 
@@ -57,19 +88,29 @@ Stack: **@coveo/headless** + **React** (TypeScript)
 - Sources: `#/orgid/content/sources/`
 - Fields: `#/orgid/content/fields/`
 - Content Browser (inspect indexed items): `#/orgid/content/browser/`
+- Query Pipelines: `#/orgid/search/pipelines/`
+- ML Models: `#/orgid/machine-learning/models/`
 - Search Pages (built-in editor): `#/orgid/search/pages/`
+
+Full operational procedures: see [`docs/coveo-admin-playbook.md`](../../docs/coveo-admin-playbook.md).
 
 ---
 
-## pokemondb.net Structure
-- Individual Pokemon pages: `https://pokemondb.net/pokedex/{name}` — INCLUDE these
-- Exclude: `/move/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
-- Pokemon image: found in `<div class="infocard-lg">` or the main `<img>` in the Pokedex entry table
-- Pokemon type(s): in the table row labeled "Type"
-- Pokemon generation: in the table row labeled "Generation"
+## pokemondb.net Structure (verified May 2026)
+- Individual Pokémon pages: `https://pokemondb.net/pokedex/{name}` — **INCLUDE** these (one path segment after `/pokedex/`)
+- Multi-segment paths (`/pokedex/game/...`, `/pokedex/stats/...`) — EXCLUDE
+- Hub pages (`/pokedex/all`, `/pokedex/national`) — typically excluded except when used as starting URL
+- Other site sections — EXCLUDE: `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
+- **Image**: `<meta property="og:image">` is the most stable extractor
+- **Type(s)**: first `table.vitals-table` ("Pokédex data") → Type row → `a.type-icon` links
+- **Generation**: `<abbr>` element in the intro paragraph (NOT in the vitals table — many Pokémon lack a Generation row in vitals)
+- **Abilities**: `a[href^="/ability/"]` links in Pokédex data table (multi-value, semicolon-joined)
+- **Base Stats**: `<table class="vitals-table">` nested under `#dex-stats ~ div.resp-scroll`; stat rows in `<tbody>`, Total in `<tfoot>`
+- **Multi-form Pokémon** (Charizard, Mewtwo, Terapagos, …): only the **default form's** stats are captured because `id="dex-stats"` is unique per HTML spec
 
 ---
 
 ## NPM Packages
-- `@coveo/headless` — state management, engine, controllers (pinned to `3.50.1`)
-- No separate React wrapper needed for client-side rendering; use vanilla headless with React hooks
+- `@coveo/headless` — state management, engine, controllers (pinned to `^3.50.1`)
+- No separate React wrapper (`@coveo/headless-react`) needed for client-side rendering; use vanilla `@coveo/headless` with the `useCoveoController` hook in `web/src/hooks/`
+- Optional dev dependency: `playwright` + `tsx` in the **separate** `tools/seed-ml/` package — NOT installed by `web/`

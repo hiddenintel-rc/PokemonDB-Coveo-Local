@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# `web/` — Pokémon Search (Next.js + `@coveo/headless`)
 
-## Getting Started
+The deliverable Next.js application for the Coveo Pokémon Challenge. Architecture, design decisions, Coveo admin procedures, and the project roadmap live one directory up — see **[`../README.md`](../README.md)** for the entry point and **[`../docs/`](../docs/README.md)** for the full doc set.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local      # add NEXT_PUBLIC_COVEO_ORG_ID + NEXT_PUBLIC_COVEO_API_KEY
+npm install
+npm run dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without env vars, the page renders an inline "env missing" banner instead of crashing — `next build` and `npm run lint` both succeed without Coveo credentials.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Next.js dev server (Fast Refresh). |
+| `npm run build` | Production build (`next build`). |
+| `npm run start` | Serve the production build (`next start`). |
+| `npm run lint` | ESLint (`eslint-config-next` v16). |
 
-## Learn More
+## Key files (see `docs/application-components.md` for the full map)
 
-To learn more about Next.js, take a look at the following resources:
+| Path | Role |
+|---|---|
+| `src/app/page.tsx` | Home route — renders `SearchInterface`. |
+| `src/app/pokemon/[slug]/page.tsx` | Detail route — renders `<PokemonDetailView key={slug} slug={slug} />`. |
+| `src/coveo/search-instance.ts` | Engine + all seven Headless controllers + `BST_TIERS` source of truth. |
+| `src/coveo/fetch-pokemon-by-slug.ts` | Detail-page Coveo Search API fetch (analytics-disabled). |
+| `src/components/search/SearchInterface.tsx` | All search UI — search box w/ QS, four facets, RGA panel, result cards w/ BST chip, env-guard banner. |
+| `src/components/pokemon/PokemonDetailView.tsx` | Detail page — skeleton / found / not-found / error states. |
+| `src/hooks/useCoveoController.ts` | Generic `controller.subscribe()` → React state bridge. |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Optional companion package
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`tools/seed-ml/` (sibling directory) contains a Playwright runner that warms up the three associated Coveo ML models (`pokemon_QS`, `pokemon_RGA`, `pokemon_ART`) by driving this live app. **Not** installed by `web/` — see `../docs/coveo-admin-playbook.md` §3 Phase 4 for usage.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Next.js version note:** This project runs **Next.js 16.2.x** with breaking changes versus older Next.js conventions. The `params` prop on dynamic routes is now a `Promise` (unwrap with React's `use()` hook). When extending routes, read [`../web/AGENTS.md`](./AGENTS.md) first.

@@ -6,111 +6,263 @@ alwaysApply: false
 
 # Coveo Headless + React Patterns
 
-## Engine Setup (do once, export as singleton)
+Conventions used throughout `web/src/`. When extending the search UI, follow these patterns rather than reinventing them. The authoritative implementation is in `web/src/coveo/search-instance.ts` (engine + controllers) and `web/src/components/search/SearchInterface.tsx` (UI).
 
-**Next.js (this repo):** use `process.env.NEXT_PUBLIC_COVEO_ORG_ID` and `NEXT_PUBLIC_COVEO_API_KEY` in `web/src/coveo/search-instance.ts`. For Vite, use `import.meta.env.VITE_*` instead.
+## Engine setup — module-level singleton with `coveoConfigured()` gate
 
 ```ts
-// Conceptual — see web/src/coveo/search-instance.ts
-import { buildSearchEngine } from '@coveo/headless';
+// web/src/coveo/search-instance.ts (excerpt)
+import { buildSearchEngine, type SearchEngine } from '@coveo/headless';
 
-export const engine = buildSearchEngine({
-  configuration: {
-    organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID!,
-    accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY!,
-    search: {
-      searchHub: process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? 'PokemonSearch',
-    },
-  },
-});
-```
+let engine: SearchEngine | null = null;
 
-## Controller Pattern (one custom hook per controller)
+export function getSearchEngine(): SearchEngine {
+  if (!engine) {
+    engine = buildSearchEngine({
+      configuration: {
+        organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID ?? '',
+        accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY ?? '',
+        search: {
+          searchHub: process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? 'PokemonSearch',
+        },
+      },
+    });
+  }
+  return engine;
+}
 
-```tsx
-// src/hooks/useSearchBox.ts
-import { buildSearchBox } from '@coveo/headless';
-import { useEffect, useState } from 'react';
-import { engine } from '../coveo/engine';
-
-const controller = buildSearchBox(engine);
-
-export function useSearchBox() {
-  const [state, setState] = useState(controller.state);
-  useEffect(() => controller.subscribe(() => setState(controller.state)), []);
-  return { state, controller };
+export function coveoConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_COVEO_ORG_ID && process.env.NEXT_PUBLIC_COVEO_API_KEY,
+  );
 }
 ```
 
-- Controllers are built **once** outside the component (module scope or context)
-- Subscribe in `useEffect`, unsubscribe via returned cleanup function
-- Never rebuild the engine or controller on each render
+**Key conventions:**
 
-## Facet Controller
+- **Lazy singleton**, never created at module load — avoids `next build` failures when env vars are absent.
+- **`coveoConfigured()` guard** at the top of `SearchInterface` swaps in an `EnvMissingBanner` when credentials are absent. This is what makes the build succeed without secrets.
+- **One engine per browser session** — never instantiate per-component or per-render.
 
-```tsx
-import { buildFacet } from '@coveo/headless';
-import { engine } from '../coveo/engine';
+## Controller singletons — one bundled `getSearchControllers()`
 
-export const typeFacet = buildFacet(engine, {
-  options: { field: 'pokemontype', numberOfValues: 25 },
-});
+This project builds **all controllers up-front** in one function rather than one custom hook per controller. The shape is:
 
-export const generationFacet = buildFacet(engine, {
-  options: { field: 'pokemongeneration', numberOfValues: 15 },
-});
+```ts
+type SearchControllers = {
+  searchBox: SearchBox;
+  resultList: ResultList;
+  typeFacet: Facet;            // pokemontype (multi-value)
+  generationFacet: Facet;      // pokemongeneration (single-value)
+  abilityFacet: Facet;         // pokemonability (multi-value, large cardinality)
+  bstFacet: NumericFacet;      // pokemonbst (5 labeled tiers)
+  generatedAnswer: GeneratedAnswer; // RGA
+};
+
+let controllers: SearchControllers | null = null;
+
+export function getSearchControllers(): SearchControllers {
+  if (!controllers) {
+    const e = getSearchEngine();
+    controllers = {
+      searchBox: buildSearchBox(e, { options: { numberOfSuggestions: 8 } }),
+      resultList: buildResultList(e, {
+        options: {
+          fieldsToInclude: [
+            'pictureuri', 'syspictureuri',
+            'pokemontype', 'pokemongeneration', 'pokemonability',
+            'pokemonbst',
+            'picture_uri', 'pokemon_generation', // alternate field-name fallbacks
+          ],
+        },
+      }),
+      typeFacet:       buildFacet(e, { options: { field: 'pokemontype',       numberOfValues: 25 } }),
+      generationFacet: buildFacet(e, { options: { field: 'pokemongeneration', numberOfValues: 15 } }),
+      abilityFacet:    buildFacet(e, {
+        options: { facetId: 'pokemonability', field: 'pokemonability', numberOfValues: 50, injectionDepth: 5000 },
+      }),
+      bstFacet: buildNumericFacet(e, {
+        options: {
+          facetId: 'pokemonbst',
+          field: 'pokemonbst',
+          generateAutomaticRanges: false,
+          currentValues: BST_TIERS.map(({ start, end }) => ({
+            start, end, endInclusive: false, state: 'idle',
+          })),
+        },
+      }),
+      generatedAnswer: buildGeneratedAnswer(e, {
+        fieldsToIncludeInCitations: [
+          'pictureuri', 'syspictureuri', 'pokemontype', 'pokemongeneration', 'pokemonability',
+        ],
+      }) as GeneratedAnswer,
+    };
+  }
+  return controllers;
+}
 ```
 
-## Result List + Image Display
+**Why bundled, not one-hook-per-controller:** all controllers share lifecycle (engine, env-guard, hot-reload) and most components consume multiple at once. A single `getSearchControllers()` is less ceremony than seven `useFooController()` hooks.
 
-Configure **`fieldsToInclude`** on **`buildResultList`** so custom indexed fields appear on each hit (`web/src/coveo/search-instance.ts`). Without it, **`result.raw`** typically has **default** fields only—even if **Content Browser** shows `pictureuri`, `pokemontype`, etc.
+## Subscribing in React — the `useCoveoController` hook
 
-```tsx
-buildResultList(engine, {
-  options: {
-    fieldsToInclude: [
-      'pictureuri',
-      'syspictureuri',
-      'pokemontype',
-      'pokemongeneration',
-      'picture_uri',
-      'pokemon_generation',
-    ],
-  },
-});
+```ts
+// web/src/hooks/useCoveoController.ts
+'use client';
+import { useEffect, useState } from 'react';
 
-// Access field values from result.raw (after fieldsToInclude)
-const imageUrl =
-  (result.raw['pictureuri'] as string | undefined) ??
-  (result.raw['picture_uri'] as string | undefined) ??
-  (result.raw['syspictureuri'] as string | undefined);
-const types = result.raw['pokemontype'] as string | string[] | undefined;
+type Subscribable<S> = { readonly state: S; subscribe(listener: () => void): () => void };
+
+export function useCoveoController<S>(controller: Subscribable<S>): S {
+  const [state, setState] = useState(controller.state);
+  useEffect(() => controller.subscribe(() => setState(controller.state)), [controller]);
+  return state;
+}
 ```
 
-- Field names in `result.raw` are lowercase
+One generic hook covers every controller (`SearchBox`, `ResultList`, `Facet`, `NumericFacet`, `GeneratedAnswer`, `InteractiveResult`). Usage:
 
-## executeFirstSearch
+```tsx
+const controllers = getSearchControllers();
+const searchBoxState   = useCoveoController(controllers.searchBox);
+const resultState      = useCoveoController(controllers.resultList);
+const bstFacetState    = useCoveoController(controllers.bstFacet);
+const generatedAnswer  = useCoveoController(controllers.generatedAnswer);
+```
 
-Always call `engine.executeFirstSearch()` once after initialization, not on every render.
+The `[controller]` dep array is stable because controllers are module singletons.
 
-## Environment Variables
+## Numeric facet — fixed `currentValues` + label mapping
 
-Next.js: `NEXT_PUBLIC_COVEO_ORG_ID`, `NEXT_PUBLIC_COVEO_API_KEY` in `web/.env` or `web/.env.local` (gitignored); `web/.env.example` documents keys only — never commit secrets.
+BST is a `buildNumericFacet` with hard-coded tier ranges:
 
-## File Structure Convention
+```ts
+export const BST_TIERS = [
+  { start: 0,   end: 300,  label: 'Frail',       suffix: '<300'    },
+  { start: 300, end: 450,  label: 'Average',     suffix: '300–449' },
+  { start: 450, end: 520,  label: 'Strong',      suffix: '450–519' },
+  { start: 520, end: 580,  label: 'Very strong', suffix: '520–579' },
+  { start: 580, end: 1000, label: 'Legendary',   suffix: '580+'    },
+] as const;
+
+export function bstTierForRange(start: number, end: number) {
+  return BST_TIERS.find((t) => t.start === start && t.end === end);
+}
+```
+
+In render, map each `NumericFacetValue` back to its tier label by matching `start`/`end`. Don't use `generateAutomaticRanges: true` — Coveo's auto-bins are ugly and meaningless (e.g. `256–417`).
+
+## SearchBox with Query Suggestions — combobox accessibility pattern
+
+`numberOfSuggestions: 8` opts the SearchBox into Coveo's QS model. The UI must implement a **WAI-ARIA combobox**:
+
+- Input has `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`.
+- Suggestion list has `role="listbox"`, each item `role="option"` with `aria-selected`.
+- Keyboard: ArrowDown/Up navigates, Enter applies highlighted suggestion via `searchBox.selectSuggestion(rawValue)`, Escape closes.
+- Don't reset `activeIndex` in a `useEffect` keyed to `state.suggestions` — that trips the `react-hooks/set-state-in-effect` lint rule. Clamp in render: `const effectiveActiveIndex = activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1`, and reset on user input change.
+
+## Result clicks — `buildInteractiveResult` for ART analytics
+
+Every result card needs a per-result `InteractiveResult` controller so clicking the card emits a `documentClick` event — the training signal Automatic Relevance Tuning consumes. Wrap the whole card in a Next.js `<Link>` to the detail route:
+
+```tsx
+function PokemonCard({ result }: { result: Result }) {
+  const interactiveResult = useMemo(
+    () => buildInteractiveResult(getSearchEngine(), { options: { result } }),
+    [result],
+  );
+  const slug = useMemo(() => slugFromClickUri(result.clickUri), [result.clickUri]);
+
+  return (
+    <Link
+      href={`/pokemon/${slug}`}
+      onClick={() => interactiveResult.select()}
+      className="group block rounded-xl outline-none ring-emerald-500/40 focus-visible:ring-4"
+    >
+      {/* card body */}
+    </Link>
+  );
+}
+```
+
+- **`useMemo` keyed to `result`** is mandatory — recreating the controller on every render breaks subscriptions and floods analytics.
+- **`onClick` fires before navigation** in Next.js's Link, so `select()` lands its analytics event before the route change.
+- **Don't use `<a href="..." target="_blank">`** on the title — that bypasses InteractiveResult unless you also wire its onClick.
+
+## Generated Answer (RGA) — silent fallback when no model
+
+The `GeneratedAnswerPanel` component must handle four states and be silent when none apply:
+
+| State condition | What to render |
+|---|---|
+| `state.isLoading \|\| state.isStreaming` | "Thinking…" / "Answering…" indicator |
+| `state.answer && state.answer.trim().length > 0` | The answer + citations + 👍/👎 buttons |
+| `state.cannotAnswer && !hasAnswer` | Nothing (let the result list speak) |
+| `state.error?.message && !hasAnswer` | Inline error with optional Retry if `error.isRetryable` |
+| **None of the above** | **Nothing** — the panel completely disappears |
+
+The all-quiet branch is essential: when no RGA model is associated to the pipeline (or the org doesn't have RGA), `state.answer` stays undefined; the panel must render `null` so the search page works exactly as it did before RGA.
+
+- Plain-text rendering (`whitespace-pre-wrap`) — **no `dangerouslySetInnerHTML`** per security audit.
+- Citation clicks: `controller.logCitationClick(citationId, state.answerId)` (or no-answerId overload) on the citation link's `onClick`.
+- Like/dislike: `controller.like()` / `controller.dislike()`; disable buttons after `state.feedbackSubmitted`.
+
+## Detail page — bypass the Headless engine for one-off fetches
+
+`web/src/coveo/fetch-pokemon-by-slug.ts` issues a direct `POST /rest/search/v2` with `analytics: { enabled: false }` and `numberOfResults: 1`. This is **deliberately outside** the Headless engine state because:
+
+1. Detail-page fetches shouldn't increment the main engine's search count.
+2. They shouldn't emit `search` analytics events that pollute the QS / ART training corpus.
+3. They use an `aq=@uri==(...)` filter that has nothing to do with the user's current search state.
+
+The home/search UI continues to use the Headless engine singletons via `getSearchControllers()`.
+
+## `fieldsToInclude` — non-obvious requirement
+
+Headless adds **only default fields** to `result.raw` unless `fieldsToInclude` lists each custom field. **Content Browser** shows every stored field, which is misleading: a field can be populated in the index but absent from search hits until you include it. If a card line is blank but the field shows in Content Browser, missing entry in `fieldsToInclude` is the most likely cause.
+
+Current value (`web/src/coveo/search-instance.ts`):
+
+```
+['pictureuri', 'syspictureuri', 'pokemontype', 'pokemongeneration', 'pokemonability', 'pokemonbst', 'picture_uri', 'pokemon_generation']
+```
+
+`picture_uri` and `pokemon_generation` are alternate Coveo field naming fallbacks.
+
+## `executeFirstSearch` — once, on mount
+
+```tsx
+const firstSearchDone = useRef(false);
+useEffect(() => {
+  if (firstSearchDone.current) return;
+  firstSearchDone.current = true;
+  getSearchEngine().executeFirstSearch();
+}, []);
+```
+
+The ref guard prevents double-execution in React's strict-mode dev render. Don't move it inside the component body.
+
+## Environment variables (Next.js)
+
+`NEXT_PUBLIC_COVEO_ORG_ID`, `NEXT_PUBLIC_COVEO_API_KEY` in `web/.env` or `web/.env.local` (both gitignored). `web/.env.example` documents keys only — never commit secrets. Optional: `NEXT_PUBLIC_COVEO_SEARCH_HUB` (defaults to `PokemonSearch`; must match the hub locked onto the API key, if any).
+
+## Actual file structure (`web/src/`)
 
 ```
 src/
+  app/
+    layout.tsx
+    page.tsx                            # renders <SearchInterface />
+    pokemon/[slug]/page.tsx             # detail route, unwraps params via React use()
+    globals.css                         # Tailwind entry + product-filter styling hooks
   coveo/
-    engine.ts          # singleton engine
-    controllers.ts     # all controller singletons
-  hooks/
-    useSearchBox.ts
-    useResultList.ts
-    useFacet.ts
+    search-instance.ts                  # engine + all controllers (singletons)
+    fetch-pokemon-by-slug.ts            # one-off detail fetch (no analytics)
   components/
-    SearchBox.tsx
-    ResultList.tsx
-    PokemonCard.tsx    # single result with image
-    FacetPanel.tsx
+    search/SearchInterface.tsx          # all search UI (card, facets, RGA panel, combobox)
+    pokemon/PokemonDetailView.tsx       # detail UI (loading/found/notfound/error)
+  hooks/
+    useCoveoController.ts               # generic subscribe→state bridge
 ```
+
+The legacy "one custom hook per controller, one component per UI section" structure shown in older Coveo samples is intentionally not used — the bundled singletons + one generic hook + one `SearchInterface` is simpler to read and easier to keep in sync when adding facets.

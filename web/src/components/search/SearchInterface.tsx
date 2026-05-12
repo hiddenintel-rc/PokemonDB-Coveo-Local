@@ -1,20 +1,31 @@
 "use client";
 
 import {
+  bstTierForRange,
   getSearchControllers,
   getSearchEngine,
   coveoConfigured,
 } from "@/coveo/search-instance";
+import { slugFromClickUri } from "@/coveo/fetch-pokemon-by-slug";
 import { useCoveoController } from "@/hooks/useCoveoController";
-import type { Result } from "@coveo/headless";
+import { buildInteractiveResult } from "@coveo/headless";
+import type {
+  GeneratedAnswer,
+  GeneratedAnswerState,
+  Result,
+  SearchBox,
+  SearchBoxState,
+} from "@coveo/headless";
+import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** Stable IDs for CSS / design tokens — override via `[data-product-filter="…"]` in `globals.css`. */
 export const PRODUCT_FILTER_IDS = {
   pokemonType: "pokemon-type",
   pokemonGeneration: "pokemon-generation",
   pokemonAbility: "pokemon-ability",
+  pokemonBst: "pokemon-bst",
 } as const;
 
 function ProductFacetFilterSection({
@@ -105,6 +116,14 @@ function abilityValuesFromRaw(raw: Record<string, unknown>): string[] {
   return list;
 }
 
+/** BST (integer) from `result.raw`. Tolerates string vs number serialization and missing field. */
+function bstFromRaw(raw: Record<string, unknown>): number | null {
+  const v = raw.pokemonbst;
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function PokemonCard({ result }: { result: Result }) {
   const raw = result.raw as Record<string, unknown>;
   const picture =
@@ -113,12 +132,24 @@ function PokemonCard({ result }: { result: Result }) {
     (raw.syspictureuri as string | undefined);
   const types = facetValues(raw, "pokemontype");
   const abilities = abilityValuesFromRaw(raw);
+  const bst = bstFromRaw(raw);
   const generation =
     (raw.pokemongeneration as string | undefined) ||
     (raw.pokemon_generation as string | undefined);
 
-  return (
-    <article className="flex gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+  // Per-result Headless controller — re-created when the result object changes.
+  // `select()` emits a `documentClick` analytics event the moment the user opens
+  // the card, providing the training signal Automatic Relevance Tuning (ART)
+  // needs to re-rank future result lists.
+  const interactiveResult = useMemo(
+    () => buildInteractiveResult(getSearchEngine(), { options: { result } }),
+    [result],
+  );
+
+  const slug = useMemo(() => slugFromClickUri(result.clickUri), [result.clickUri]);
+
+  const cardBody = (
+    <article className="flex gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors group-hover:border-emerald-300 group-hover:bg-emerald-50/40 dark:border-zinc-800 dark:bg-zinc-950 dark:group-hover:border-emerald-800/60 dark:group-hover:bg-emerald-950/20">
       <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-900">
         {picture ? (
           // eslint-disable-next-line @next/next/no-img-element -- dynamic Coveo image URLs
@@ -135,16 +166,20 @@ function PokemonCard({ result }: { result: Result }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          <a
-            href={result.clickUri}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-          >
+        <div className="flex items-baseline gap-2">
+          <h2 className="truncate text-lg font-semibold text-zinc-900 group-hover:underline dark:text-zinc-50">
             {result.title}
-          </a>
-        </h2>
+          </h2>
+          {bst != null && (
+            <span
+              className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+              title="Base Stat Total"
+              aria-label={`Base Stat Total ${bst}`}
+            >
+              BST {bst}
+            </span>
+          )}
+        </div>
         {types.length > 0 && (
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             Types: {types.join(", ")}
@@ -162,6 +197,21 @@ function PokemonCard({ result }: { result: Result }) {
         )}
       </div>
     </article>
+  );
+
+  // Fallback for the unlikely case where the result has no parseable slug —
+  // render an inert card so the rest of the result list still works.
+  if (!slug) return cardBody;
+
+  return (
+    <Link
+      href={`/pokemon/${slug}`}
+      onClick={() => interactiveResult.select()}
+      className="group block rounded-xl outline-none ring-emerald-500/40 focus-visible:ring-4"
+      aria-label={`View details for ${result.title}`}
+    >
+      {cardBody}
+    </Link>
   );
 }
 
@@ -194,6 +244,266 @@ function EnvMissingBanner() {
   );
 }
 
+/**
+ * Coveo RGA (Relevance Generative Answering) panel.
+ * - Renders only when the model produces (or is producing) an answer.
+ * - Silent fallback when the model isn't associated to the pipeline OR the org doesn't have
+ *   RGA enabled — `state.answer` stays undefined and `isLoading` stays false.
+ * - Plain-text rendering of the answer (no `dangerouslySetInnerHTML` per security audit);
+ *   `whitespace-pre-wrap` preserves line breaks the LLM produces.
+ */
+function GeneratedAnswerPanel({
+  controller,
+  state,
+}: {
+  controller: GeneratedAnswer;
+  state: GeneratedAnswerState;
+}) {
+  const hasAnswer = Boolean(state.answer && state.answer.trim().length > 0);
+  const isThinking = state.isLoading || state.isStreaming;
+  const hasError = Boolean(state.error?.message);
+
+  if (!hasAnswer && !isThinking && !hasError) return null;
+  if (state.cannotAnswer && !hasAnswer) return null;
+
+  return (
+    <section
+      aria-label="AI generated answer"
+      data-region="generated-answer"
+      className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-900/60 dark:from-emerald-950/40 dark:to-zinc-950"
+    >
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+          <svg
+            viewBox="0 0 24 24"
+            className="size-4"
+            fill="currentColor"
+            aria-hidden
+          >
+            <path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4L12 2zM5 14l1 2.6L8 17l-2 .4L5 20l-1-2.6L2 17l2-.4L5 14zm14 0l1 2.6L22 17l-2 .4L19 20l-1-2.6L16 17l2-.4L19 14z" />
+          </svg>
+          AI-generated answer
+          {isThinking && (
+            <span className="ml-1 inline-flex items-center gap-1 text-xs font-normal text-emerald-600/80 dark:text-emerald-400/80">
+              <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+              {state.isStreaming ? "answering…" : "thinking…"}
+            </span>
+          )}
+        </div>
+      </header>
+
+      {hasAnswer && (
+        <div className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-100">
+          {state.answer}
+        </div>
+      )}
+
+      {hasError && !hasAnswer && (
+        <div className="text-sm text-zinc-600 dark:text-zinc-400">
+          Generated answer unavailable.
+          {state.error?.isRetryable && (
+            <button
+              type="button"
+              onClick={() => controller.retry()}
+              className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-300"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
+      {state.citations.length > 0 && (
+        <ol className="mt-4 flex flex-wrap gap-2">
+          {state.citations.map((c, idx) => {
+            const href = c.clickUri ?? c.uri;
+            return (
+              <li key={c.id}>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() =>
+                    state.answerId
+                      ? controller.logCitationClick(c.id, state.answerId)
+                      : controller.logCitationClick(c.id)
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs text-emerald-800 shadow-sm hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-zinc-900 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
+                >
+                  <span className="font-semibold">[{idx + 1}]</span>
+                  <span className="max-w-[20ch] truncate">{c.title}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {hasAnswer && !isThinking && (
+        <footer className="mt-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <span>Was this helpful?</span>
+          <button
+            type="button"
+            onClick={() => controller.like()}
+            disabled={state.feedbackSubmitted}
+            aria-pressed={state.liked}
+            className={`rounded-md px-2 py-1 transition-colors ${
+              state.liked
+                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            👍
+          </button>
+          <button
+            type="button"
+            onClick={() => controller.dislike()}
+            disabled={state.feedbackSubmitted}
+            aria-pressed={state.disliked}
+            className={`rounded-md px-2 py-1 transition-colors ${
+              state.disliked
+                ? "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200"
+                : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            👎
+          </button>
+          {state.feedbackSubmitted && (
+            <span className="ml-1 text-emerald-700 dark:text-emerald-300">
+              Thanks!
+            </span>
+          )}
+        </footer>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Combobox-pattern search input with Coveo Query Suggestions.
+ * - Suggestions come from `state.suggestions` (populated by the QS model on the active pipeline).
+ * - `selectSuggestion` updates the search box value AND submits — no separate submit needed.
+ * - Keyboard: ArrowDown/Up navigates, Enter applies the highlighted suggestion (or submits the
+ *   current text if none is highlighted), Escape closes the dropdown.
+ */
+function SearchBoxWithSuggestions({
+  searchBox,
+  state,
+}: {
+  searchBox: SearchBox;
+  state: SearchBoxState;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const blurTimerRef = useRef<number | undefined>(undefined);
+  const listboxId = "search-suggestions";
+
+  useEffect(
+    () => () => {
+      if (blurTimerRef.current !== undefined)
+        window.clearTimeout(blurTimerRef.current);
+    },
+    [],
+  );
+
+  const suggestions = state.suggestions;
+  const showList = isOpen && suggestions.length > 0;
+  // Guard against activeIndex outlasting a shrunk suggestion list (e.g. the
+  // user typed and the QS model returned fewer candidates than before).
+  const effectiveActiveIndex =
+    activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
+
+  return (
+    <div className="relative flex-1">
+      <input
+        type="search"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={showList}
+        aria-controls={listboxId}
+        aria-activedescendant={
+          effectiveActiveIndex >= 0
+            ? `${listboxId}-${effectiveActiveIndex}`
+            : undefined
+        }
+        autoComplete="off"
+        value={state.value}
+        onChange={(e) => {
+          searchBox.updateText(e.target.value);
+          // Typing always invalidates the current highlight — the suggestion
+          // list is about to change shape.
+          setActiveIndex(-1);
+        }}
+        onFocus={() => {
+          setIsOpen(true);
+          searchBox.showSuggestions();
+        }}
+        onBlur={() => {
+          blurTimerRef.current = window.setTimeout(
+            () => setIsOpen(false),
+            120,
+          );
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setIsOpen(true);
+            setActiveIndex((i) =>
+              suggestions.length === 0 ? -1 : Math.min(i + 1, suggestions.length - 1),
+            );
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActiveIndex((i) => Math.max(i - 1, -1));
+          } else if (e.key === "Enter") {
+            if (showList && effectiveActiveIndex >= 0) {
+              e.preventDefault();
+              searchBox.selectSuggestion(
+                suggestions[effectiveActiveIndex].rawValue,
+              );
+              setIsOpen(false);
+            }
+          } else if (e.key === "Escape") {
+            setIsOpen(false);
+            setActiveIndex(-1);
+          }
+        }}
+        placeholder="Search Pokémon…"
+        className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-zinc-900 shadow-sm outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-4 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        aria-label="Search"
+      />
+      {showList && (
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-lg border border-zinc-300 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+        >
+          {suggestions.map((sug, idx) => (
+            <li
+              id={`${listboxId}-${idx}`}
+              key={`${sug.rawValue}-${idx}`}
+              role="option"
+              aria-selected={idx === effectiveActiveIndex}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                searchBox.selectSuggestion(sug.rawValue);
+                setIsOpen(false);
+              }}
+              onMouseEnter={() => setActiveIndex(idx)}
+              className={`cursor-pointer px-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 ${
+                idx === effectiveActiveIndex
+                  ? "bg-emerald-50 dark:bg-emerald-900/30"
+                  : "hover:bg-zinc-100 dark:hover:bg-zinc-800/80"
+              }`}
+            >
+              {sug.rawValue}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function SearchInterfaceConfigured() {
   const controllers = getSearchControllers();
   const searchBoxState = useCoveoController(controllers.searchBox);
@@ -201,6 +511,8 @@ function SearchInterfaceConfigured() {
   const typeFacetState = useCoveoController(controllers.typeFacet);
   const genFacetState = useCoveoController(controllers.generationFacet);
   const abilityFacetState = useCoveoController(controllers.abilityFacet);
+  const bstFacetState = useCoveoController(controllers.bstFacet);
+  const generatedAnswerState = useCoveoController(controllers.generatedAnswer);
 
   const firstSearchDone = useRef(false);
 
@@ -223,15 +535,9 @@ function SearchInterfaceConfigured() {
             controllers.searchBox.submit();
           }}
         >
-          <input
-            type="search"
-            value={searchBoxState.value}
-            onChange={(e) =>
-              controllers.searchBox.updateText(e.target.value)
-            }
-            placeholder="Search Pokémon…"
-            className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-zinc-900 shadow-sm outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-4 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-            aria-label="Search"
+          <SearchBoxWithSuggestions
+            searchBox={controllers.searchBox}
+            state={searchBoxState}
           />
           <button
             type="submit"
@@ -309,9 +615,51 @@ function SearchInterfaceConfigured() {
               />
             ))}
           </ProductFacetFilterSection>
+          <ProductFacetFilterSection
+            productFilterId={PRODUCT_FILTER_IDS.pokemonBst}
+            heading="Base stat total"
+          >
+            {/*
+              Numeric facet with fixed `currentValues` always returns the 5 tier ranges,
+              so values.length is constant. When `pokemonbst` is missing from the index
+              every count is 0 — surface a one-line hint so the empty state isn't silent.
+            */}
+            {!resultState.isLoading &&
+              bstFacetState.values.length > 0 &&
+              bstFacetState.values.every((v) => v.numberOfResults === 0) && (
+                <li className="product-filter__option px-1 py-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  No BST data from Coveo yet. In Admin → Content → Fields, confirm{" "}
+                  <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">
+                    pokemonbst
+                  </code>{" "}
+                  exists with a numeric <strong>Type</strong> (<em>Integer 32</em> on
+                  trial orgs, or <em>Long</em>) and <strong>Facet = Yes</strong>, then
+                  rebuild the source.
+                </li>
+              )}
+            {bstFacetState.values.map((v) => {
+              const tier = bstTierForRange(v.start, v.end);
+              const label = tier
+                ? `${tier.label} (${tier.suffix})`
+                : `${v.start}–${v.end}`;
+              return (
+                <ProductFacetOptionRow
+                  key={`${v.start}-${v.end}`}
+                  optionValue={label}
+                  resultCount={v.numberOfResults}
+                  selected={v.state === "selected"}
+                  onToggle={() => controllers.bstFacet.toggleSelect(v)}
+                />
+              );
+            })}
+          </ProductFacetFilterSection>
         </aside>
 
         <section className="min-w-0 flex-1 space-y-4">
+          <GeneratedAnswerPanel
+            controller={controllers.generatedAnswer}
+            state={generatedAnswerState}
+          />
           <p className="text-sm text-zinc-500">
             {resultState.isLoading
               ? "Loading…"

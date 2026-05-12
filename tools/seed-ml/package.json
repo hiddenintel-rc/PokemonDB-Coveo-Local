@@ -1,0 +1,16 @@
+{
+  "name": "pokemondb-seed-ml",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Optional Playwright warm-up for Coveo ML — not required for web/ build or install.",
+  "scripts": {
+    "seed": "tsx seed-ml.ts",
+    "seed:headed": "tsx seed-ml.ts --headed",
+    "setup": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0",
+    "tsx": "^4.21.0"
+  }
+}

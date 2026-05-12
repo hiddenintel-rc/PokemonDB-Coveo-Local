@@ -34,6 +34,7 @@ body {
  *   [data-product-filter="pokemon-type"]
  *   [data-product-filter="pokemon-generation"]
  *   [data-product-filter="pokemon-ability"]
+ *   [data-product-filter="pokemon-bst"]
  * BEM-style classes on each panel: .product-filter, .product-filter__summary,
  *   .product-filter__panel, .product-filter__options, .product-filter__option,
  *   .product-filter__control, .product-filter__checkbox, .product-filter__option-label,

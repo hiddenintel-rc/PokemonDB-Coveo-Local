@@ -89,9 +89,38 @@ Attach to the source to extract custom metadata. Rules below are aligned with **
 | **Generation** | There is **no** “Generation” row in that vitals table on Cascoon. Intro line: `… introduced in <abbr …>Generation 3</abbr>.` | A selector that only looks for `th` **Generation** in vitals will be **empty** on many Pokémon. Prefer the **intro** `<abbr>` after `<h1>` (see JSON). |
 | **Picture** | `<meta property="og:image" content="https://img.pokemondb.net/artwork/large/cascoon.jpg">` and/or `a[rel="lightbox"][href*="artwork"]` around main artwork. | Old `infocard-lg` markup is **not** used on this layout — use **og:image** (if your crawler indexes `<head>`) or the **lightbox** artwork link. |
 
-### Recommended `subItems` (MetaData)
+### Recommended scraping selectors (verified production set, May 2026)
 
-Coveo’s extractor may **not** support jQuery-style `:has()` / `:contains()`. Prefer **structural** selectors; validate in Content Browser and adjust `nth-child` if a future redesign changes row order.
+Coveo's extractor is **jsoup-flavored CSS**, but jsoup pseudo-classes like `:has()` and `:matchesOwn()` have produced asymmetric failures in this project (see `docs/coveo-admin-playbook.md` "Selector style rejected"). **Stick to plain CSS3** — `:nth-of-type`, `:first-of-type`, attribute selectors, ID anchors, sibling combinators.
+
+These selectors are entered in **Admin → Sources → _PokemonDB Crawl_ → Edit → Web Scraping → Metadata to extract**, one row per field.
+
+```text
+# Pokédex data (String / Multi-value)
+pokemontype       main table.vitals-table:first-of-type tr:nth-child(2) td a.type-icon::text
+pokemongeneration main > h1 ~ p:first-of-type abbr::text
+pokemonability    main table.vitals-table:first-of-type td a[href^="/ability/"]::text
+pictureuri        meta[property="og:image"]::attr(content)
+
+# Base stats (Integer 32; #dex-stats anchor + tbody/tfoot positions)
+pokemonhp       #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(1) td.cell-num:first-of-type::text
+pokemonattack   #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(2) td.cell-num:first-of-type::text
+pokemondefense  #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(3) td.cell-num:first-of-type::text
+pokemonspatk    #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(4) td.cell-num:first-of-type::text
+pokemonspdef    #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(5) td.cell-num:first-of-type::text
+pokemonspeed    #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(6) td.cell-num:first-of-type::text
+pokemonbst      #dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type::text
+```
+
+**Selector design notes:**
+
+- **`main table.vitals-table:first-of-type`** anchors to the **Pokédex data** table (the topmost vitals table), avoiding the Training / Breeding / Base Stats tables that share the class. Used for type / ability extraction.
+- **`#dex-stats ~ div.resp-scroll`** anchors to the **Base Stats** wrapper specifically. `#dex-stats` is an empty anchor div whose ID is unique per HTML spec; `~ div.resp-scroll` finds the wrapper that holds the stats table (skipping the intervening `<h2>` heading).
+- **`tbody tr:nth-of-type(N)`** for the six stats; **`tfoot`** for the Total row (Total lives in `<tfoot>`, separate from `<tbody>`).
+- **`td.cell-num:first-of-type`** — the first numeric cell in a row is the actual stat. The two trailing `td.cell-num` cells are level-100 min/max projections, not the base stat.
+- **Multi-form Pokémon** (Charizard, Mewtwo, Terapagos, …) render alternate-form stats under different headings; only the default form's table is preceded by `#dex-stats`, so we get the canonical value automatically.
+
+**JSON form of the scraping config (`subItems` for completeness):**
 
 ```json
 {
@@ -99,38 +128,34 @@ Coveo’s extractor may **not** support jQuery-style `:has()` / `:contains()`. P
     {
       "type": "MetaData",
       "rules": [
-        {
-          "field": "pokemontype",
-          "selector": "main table.vitals-table:first-of-type tr:nth-child(2) td a.type-icon",
-          "attribute": "text"
-        },
-        {
-          "field": "pokemongeneration",
-          "selector": "main > h1 ~ p:first-of-type abbr",
-          "attribute": "text"
-        },
-        {
-          "field": "pictureuri",
-          "selector": "meta[property=\"og:image\"]",
-          "attribute": "content"
-        }
+        { "field": "pokemontype",       "selector": "main table.vitals-table:first-of-type tr:nth-child(2) td a.type-icon",      "attribute": "text"    },
+        { "field": "pokemongeneration", "selector": "main > h1 ~ p:first-of-type abbr",                                            "attribute": "text"    },
+        { "field": "pokemonability",    "selector": "main table.vitals-table:first-of-type td a[href^=\"/ability/\"]",            "attribute": "text"    },
+        { "field": "pictureuri",        "selector": "meta[property=\"og:image\"]",                                                "attribute": "content" },
+        { "field": "pokemonhp",         "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(1) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemonattack",     "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(2) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemondefense",    "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(3) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemonspatk",      "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(4) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemonspdef",      "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(5) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemonspeed",      "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(6) td.cell-num:first-of-type", "attribute": "text" },
+        { "field": "pokemonbst",        "selector": "#dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type",                  "attribute": "text" }
       ]
     }
   ]
 }
 ```
 
-**If `pictureuri` is empty** (connector does not parse `<head>` meta tags), replace the `pictureuri` rule with:
+**If `pictureuri` is empty** (rare — connector skipping `<head>` meta tags), fall back to:
 
 ```json
-{
-  "field": "pictureuri",
-  "selector": "main a[rel=\"lightbox\"][href*=\"artwork\"]",
-  "attribute": "href"
-}
+{ "field": "pictureuri", "selector": "main a[rel=\"lightbox\"][href*=\"artwork\"]", "attribute": "href" }
 ```
 
-> After saving scraping JSON: **rebuild** the Web source, then spot-check **Cascoon** (and one **dual-type** Pokémon, e.g. Bulbasaur) in Content Browser for all three fields.
+> After saving scraping config: **rebuild** the Web source (not Refresh), then spot-check in Content Browser:
+> - **Cascoon** (single-form, single-type)
+> - **Golbat** (dual-type, multi-ability) — verify `pokemonhp + pokemonattack + pokemondefense + pokemonspatk + pokemonspdef + pokemonspeed == pokemonbst` (455 = 75+80+70+65+75+90)
+> - **Charizard** (multi-form) — `pokemonbst` must be **534**, not 634 (Mega) or 634 (Gigantamax)
+> - **Mewtwo** (multi-form) — `pokemonbst` must be **680**, not 780 (Mega)
 
 ---
 
@@ -138,26 +163,41 @@ Coveo’s extractor may **not** support jQuery-style `:has()` / `:contains()`. P
 
 Create the following fields if they don't already exist:
 
-| Field Name       | Type   | Multi-value | Facet | Free text | Notes                         |
-|------------------|--------|-------------|-------|-----------|-------------------------------|
-| `pokemontype`    | String | Yes         | Yes   | No        | e.g. "Fire", "Water/Flying"   |
-| `pokemongeneration` | String | No       | Yes   | No        | e.g. "Generation I"           |
-| `pictureuri`     | String | No          | No    | No        | Full image URL for the sprite |
+| Field Name | Type | Multi-value | Facet | Sortable | Free text | Notes |
+|---|---|---|---|---|---|---|
+| `pokemontype` | String | **Yes** | **Yes** | No | No | e.g. `Fire`, `Water` |
+| `pokemongeneration` | String | No | **Yes** | No | No | e.g. `Generation 1` |
+| `pokemonability` | String | **Yes** | **Yes** | No | No | e.g. `Inner Focus`, `Infiltrator` (semicolon-joined) |
+| `pictureuri` | String | No | No | No | No | Full image URL |
+| `pokemonbst` | **Integer 32** | No | **auto** | **auto** | n/a | Base Stat Total (Coveo auto-locks Facet+Sortable on Integer 32) |
+| `pokemonhp` | Integer 32 | No | auto | auto | n/a | HP — unused by UI today; available for sort/ranking |
+| `pokemonattack` | Integer 32 | No | auto | auto | n/a | Attack |
+| `pokemondefense` | Integer 32 | No | auto | auto | n/a | Defense |
+| `pokemonspatk` | Integer 32 | No | auto | auto | n/a | Special Attack |
+| `pokemonspdef` | Integer 32 | No | auto | auto | n/a | Special Defense |
+| `pokemonspeed` | Integer 32 | No | auto | auto | n/a | Speed |
 
-After adding fields, **rebuild the source** (full re-crawl) so values are indexed.
+**Integer 32 vs Long:** trial orgs offer Integer 32 only; non-trial orgs may also offer Long. For Pokémon stats (max ~720) Integer 32 is wildly sufficient and slightly more storage-efficient.
+
+After adding fields, **rebuild the source** (full re-crawl, not Refresh) so values are indexed.
 
 ---
 
 ## Inspecting Indexed Items
 
 1. Admin Console → **Content Browser**
-2. Find a Pokemon item
+2. Find a Pokémon item
 3. Click it → **Properties** → **Fields** tab
-4. Verify `pokemontype`, `pokemongeneration`, `pictureuri` have values
-5. If empty: check your Web Scraping Config selectors
+4. Verify all configured fields have values
+5. If empty: check Web Scraping Config selectors (most common cause); see `coveo-admin-playbook.md` troubleshooting checklist
 
 ---
 
-## Query Pipeline (optional)
+## Query Pipeline
 
-A query pipeline can boost relevance. For this challenge, the default pipeline is fine unless you add ML models later (Query Suggest, RGA).
+The default pipeline holds (all configured in Admin → Search → Query Pipelines → default):
+
+- **Result ranking → Featured rules** — Pikachu pin on `is pokemon`, starter pins on `contains starter`
+- **Machine learning associations** — `pokemon_QS` (Query Suggestions), `pokemon_RGA` (Generative Answering), `pokemon_ART` (Automatic Relevance Tuning)
+
+ML model creation + association procedure: `docs/coveo-admin-playbook.md` §3.
