@@ -1,8 +1,8 @@
-# Next steps (planned work)
+# Roadmap and platform optimizations
 
 **Status legend:** Sections are tagged **Shipped**, **Planned**, or **Deferred**. Procedural how-to for Admin work lives in [coveo-admin-playbook.md](./coveo-admin-playbook.md); this file captures *what* and *why*, not click-by-click steps.
 
-This file tracks the post-MVP roadmap: the **Ability** facet (shipped), the **BST** facet (shipped — app + Admin both live; values populating in Content Browser), the **Pokémon detail route `/pokemon/[slug]`** (shipped — see [application-components.md](./application-components.md) and the Advanced checkbox in the root [README](../README.md)), and a set of **Coveo platform optimizations** (relevance, ML, query pipeline) discovered during platform review. Legendary/Mythical-style classifications remain explicitly out of scope.
+This file mixes two concerns on purpose: (1) a **scope log** of post-MVP features that landed — the **Ability** facet, the **BST** facet (app + Admin both live; values populating in Content Browser), and the **Pokémon detail route `/pokemon/[slug]`** (see [application-components.md](./application-components.md) and the Advanced checkbox in the root [README](../README.md)) — and (2) a **forward roadmap** of Coveo platform optimizations (relevance, ML, query pipeline) discovered during platform review, with each item flagged as Shipped, Planned, or Deferred. Legendary/Mythical-style classifications remain explicitly out of scope.
 
 ---
 
@@ -143,7 +143,7 @@ Today these fields are facet-only. Toggling Free text search makes a query like 
 - Plain-text rendering of the answer (no `dangerouslySetInnerHTML` per security audit). `whitespace-pre-wrap` preserves LLM line breaks; bold/italic/inline links from markdown are rendered as literal characters. Acceptable trade-off; can be revisited with a small markdown parser if needed.
 - Citations log click analytics via `logCitationClick(citationId, answerId)` on click — feeds RGA training signal.
 - Feedback buttons disable themselves after submission (`feedbackSubmitted`) and a "Thanks!" label confirms the send.
-- Heads-up: Coveo emits a console warning about `Analytics Mode: "Next"` vs `"legacy"`. Pre-existing — present before RGA — surfaces more visibly now because `buildGeneratedAnswer` depends on analytics. Worth revisiting if/when we move to search tokens.
+- Analytics mode: the engine is pinned to **`analyticsMode: 'legacy'`** (Coveo UA, `analytics.js`) in `web/src/coveo/search-instance.ts`. Headless v3 defaults to `'next'` (Event Protocol), but Coveo's own v2→v3 guide states that EP is GA only for **Commerce** orgs — for Search / Service / Website / Workplace implementations they instruct non-Commerce projects to use `'legacy'`. Switching back silences the "this mode is not available for Coveo for Service features" warning the panel inherited from `buildGeneratedAnswer`, keeps `pokemon_QS` / `pokemon_RGA` / `pokemon_ART` training on the UA event shape they were designed against, and preserves access to `analyticsClientMiddleware` if we ever need request-time event redaction. Revisit if/when Coveo promotes EP out of closed beta for non-Commerce.
 - **Warm-up tool:** From `tools/seed-ml/`, run `npm run seed -- --bucket rga` (after `npm install` there) to submit natural-language questions and follow the first citation per answer (firing `genqa` + `genqa.citationClick`). Use it once the Admin model status moves past "Build in progress". This package is optional and is not installed with `web/`.
 
 ### 3.7. Automatic Relevance Tuning (ART) — **Shipped (model + wiring); accumulating signal**

@@ -362,7 +362,15 @@ Useful variations (always from `tools/seed-ml/`):
 | `npm run seed -- --loops 3 --throttle 800` | Repeat the full corpus 3× with 800 ms between actions. |
 | `npm run seed -- --url http://localhost:3001` | Point at a different port (or a hosted preview). |
 
-Seed lists live in [`tools/seed-ml/queries.json`](../tools/seed-ml/queries.json); edit freely. The runner emits the same Coveo analytics events a real user does (`search`, `searchQuerySuggest`, `facetSelect`, `genqa.citationClick`). **It does not currently click result cards**, so it does not emit `documentClick` events even though the app would on real clicks. Adding a fourth bucket that opens a result → detail page (`Link` is the entire card) would feed ART training directly — a natural follow-up if reviewer traffic alone isn't enough to move `pokemon_ART` past "Build in progress."
+Seed lists live in [`tools/seed-ml/queries.json`](../tools/seed-ml/queries.json); edit freely. The runner emits the same Coveo analytics events a real user does (`search`, `searchQuerySuggest`, `facetSelect`, `genqa.citationClick`). The seeder itself does **not** click result cards (the facet seeds already produce enough re-search signal for QS/RGA), but the companion **smoke test** in the same package does fire one `documentClick` per run via the `buildInteractiveResult.select()` path on the first PokemonCard — enough to keep a steady trickle of ART training signal flowing during development:
+
+```bash
+cd tools/seed-ml
+npm run smoke                # 9 e2e assertions, ~8s, exit code 0/1
+npm run smoke -- --headed    # watch it
+```
+
+The smoke is documented in detail in [`web/README.md`](../web/README.md) and doubles as a regression guard for the duplicate-key React warning and the Coveo `Analytics Mode: "Next"` warning (DD-15). For higher-volume ART training, real reviewer traffic on the hosted app is still the more representative source.
 
 ### Impacts and trade-offs
 

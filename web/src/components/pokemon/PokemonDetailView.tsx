@@ -18,14 +18,22 @@ type ViewState =
 function rawValues(raw: Record<string, unknown>, key: string): string[] {
   const v = raw[key];
   if (v == null) return [];
-  if (Array.isArray(v)) return v.map(String).filter(Boolean);
-  const s = String(v);
-  if (s.includes(";")) {
+  let list: string[];
+  if (Array.isArray(v)) {
+    list = v.map(String).filter(Boolean);
+  } else {
+    const s = String(v);
     // Some custom fields store multi-value content as a semicolon-joined string;
     // this matches the existing handling in `SearchInterface.tsx`.
-    return s.split(";").map((p) => p.trim()).filter(Boolean);
+    list = s.includes(";")
+      ? s.split(";").map((p) => p.trim()).filter(Boolean)
+      : [s];
   }
-  return [s];
+  // Multi-form Pokémon (e.g. Enamorus Incarnate + Therian) often produce repeated
+  // values for `pokemontype` / `pokemonability` in `raw`. Dedupe so we never render
+  // two identical badges (and so React's key uniqueness invariant is preserved when
+  // the value itself is used as the list key downstream).
+  return Array.from(new Set(list));
 }
 
 function rawNumber(raw: Record<string, unknown>, key: string): number | null {

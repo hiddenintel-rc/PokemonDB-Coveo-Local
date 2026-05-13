@@ -3,10 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Optional Playwright warm-up for Coveo ML — not required for web/ build or install.",
+  "description": "Optional Playwright tooling for the Pokémon Search app: ML model warm-up (seed-ml.ts) and end-to-end smoke test (smoke.ts). Not required for web/ build or install.",
   "scripts": {
     "seed": "tsx seed-ml.ts",
     "seed:headed": "tsx seed-ml.ts --headed",
+    "smoke": "tsx smoke.ts",
+    "smoke:headed": "tsx smoke.ts --headed",
     "setup": "playwright install chromium"
   },
   "devDependencies": {

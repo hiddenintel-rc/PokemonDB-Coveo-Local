@@ -101,17 +101,25 @@ function ProductFacetOptionRow({
 function facetValues(raw: Record<string, unknown>, key: string): string[] {
   const v = raw[key];
   if (v == null) return [];
-  return Array.isArray(v) ? v.map(String) : [String(v)];
+  const list = Array.isArray(v) ? v.map(String) : [String(v)];
+  // Multi-form Pokémon (e.g. Enamorus Incarnate + Therian) can yield repeated
+  // type/ability values in `raw`. Dedupe so cards don't show "Fairy, Flying,
+  // Fairy, Flying" and so callers can safely key React lists on the value.
+  return Array.from(new Set(list));
 }
 
 /** Abilities from `result.raw` — splits semicolon-joined strings when the index stores one value. */
 function abilityValuesFromRaw(raw: Record<string, unknown>): string[] {
   const list = facetValues(raw, "pokemonability");
   if (list.length === 1 && list[0].includes(";")) {
-    return list[0]
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    return Array.from(
+      new Set(
+        list[0]
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
   }
   return list;
 }

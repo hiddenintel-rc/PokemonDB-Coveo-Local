@@ -67,6 +67,13 @@ export function getSearchEngine(): SearchEngine {
       configuration: {
         organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID ?? "",
         accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY ?? "",
+        // Headless v3 ships with `analyticsMode: 'next'` (Event Protocol) by default, which Coveo
+        // currently only fully supports for **Commerce** orgs. For Search / Service / Website /
+        // Workplace implementations (this project), Coveo's own v2→v3 guide instructs setting
+        // `analyticsMode: 'legacy'` so events flow through the classic Coveo UA endpoint that
+        // `pokemon_QS`, `pokemon_RGA`, and `pokemon_ART` already consume — and so Headless stops
+        // emitting the noisy "this mode is not available for Coveo for Service features" warning.
+        analytics: { analyticsMode: "legacy" },
         search: {
           // Coveo Search hub: analytics + query-pipeline routing label (not your Web source name).
           // If the API key *enforces* a hub, this must match that value (e.g. AdminConsole).

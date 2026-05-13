@@ -22,6 +22,10 @@ export function getSearchEngine(): SearchEngine {
       configuration: {
         organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID ?? '',
         accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY ?? '',
+        // Headless v3 defaults to `next` (Event Protocol). EP is GA only for Coveo
+        // for Commerce; for Search / Service / Website / Workplace (this project)
+        // Coveo's v2→v3 guide instructs `'legacy'`. See `docs/design-decisions.md` DD-15.
+        analytics: { analyticsMode: 'legacy' },
         search: {
           searchHub: process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? 'PokemonSearch',
         },
@@ -43,6 +47,7 @@ export function coveoConfigured(): boolean {
 - **Lazy singleton**, never created at module load — avoids `next build` failures when env vars are absent.
 - **`coveoConfigured()` guard** at the top of `SearchInterface` swaps in an `EnvMissingBanner` when credentials are absent. This is what makes the build succeed without secrets.
 - **One engine per browser session** — never instantiate per-component or per-render.
+- **`analyticsMode: 'legacy'`** — pinned explicitly. Do not remove without re-reading DD-15; the `'next'` default emits a per-render warning for non-Commerce orgs and routes events to an endpoint the existing `pokemon_QS` / `pokemon_RGA` / `pokemon_ART` models were not trained against.
 
 ## Controller singletons — one bundled `getSearchControllers()`
 

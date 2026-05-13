@@ -156,3 +156,23 @@ A CSP with `'unsafe-inline'` for `style-src` weakens the primary XSS benefit. Th
 - Switch `<img src={picture}>` to `next/image` with `remotePatterns: [{ hostname: 'img.pokemondb.net' }]` (add Coveo CDN hostname once confirmed). Enforces domain allowlist and enables image optimization.
 - `npm audit` reports `postcss <8.5.10` (GHSA-qx2v-qp2m-jg93, moderate) inside `next/node_modules/postcss`. PostCSS runs only at build time and never processes user-controlled input in this app, so effective risk is negligible. **Do not run `npm audit fix --force`** — it would downgrade Next.js to 9.3.3. Watch for a Next.js patch that bumps its internal PostCSS and upgrade when available.
 - `NEXT_PUBLIC_COVEO_API_KEY` in the client JS bundle is acceptable for an Anonymous Search key on public content (search-only, no admin access). For production, the correct mitigation is a server-side search token endpoint (DD-3). The key must never be an admin key or a key with write access.
+
+## DD-15: Analytics mode pinned to `'legacy'` (rejected: Headless v3 default `'next'`)
+
+**Decision:** `getSearchEngine()` passes **`analytics: { analyticsMode: 'legacy' }`** to `buildSearchEngine`, overriding the Headless v3 default of `'next'`.
+
+**Context:** Headless v3 changed the default from `'legacy'` (Coveo UA via `analytics.js`) to `'next'` (Event Protocol via Relay). At every render, Headless logs a `[Warning] A component from the Coveo Headless library has been instantiated with the Analytics Mode: "Next". However, this mode is not available for Coveo for Service features…` — emitted by `buildSearchBox` / `buildResultList` / `buildGeneratedAnswer` whenever the engine isn't a Commerce-mode engine.
+
+**Rationale:** Coveo's official v2→v3 upgrade guide (`docs.coveo.com/.../upgrade/v2-to-v3.html`) is explicit:
+
+> *"Only Coveo for Commerce currently supports EP. For Service, Website, and Workplace implementations, EP is in closed beta. For all non-Commerce implementations upgrading to Headless v3, you should set `analyticsMode` to `'legacy'`."*
+
+This project is a non-Commerce Search implementation on a trial org. Pinning `'legacy'`:
+
+- Silences the per-render console warning — relevant during demo/review where a noisy console undermines a "production-ready" framing.
+- Keeps every event flowing through the **Coveo UA endpoint (`/rest/ua/v15/analytics/...`)** that `pokemon_QS`, `pokemon_RGA`, and `pokemon_ART` were trained against. EP's event shape would split their training corpus into "before vs after" the switch with no observable upside on a non-Commerce org.
+- Preserves access to `analyticsClientMiddleware` if request-time event redaction is ever needed (EP drops support for it).
+
+**Considered alternative:** Stay on `'next'`. Rejected — it's actively flagged by Coveo as inappropriate for non-Commerce, the warning is non-suppressible from inside Headless, and the only theoretical benefit (server-side search-event logging) is part of EP's still-closed-beta surface for this implementation type.
+
+**Trade-off:** EP is the long-term direction for Coveo analytics; when EP moves out of closed beta for Search / Service / Website / Workplace, revisit and migrate. Tracked in `docs/next-steps.md` §3.6.

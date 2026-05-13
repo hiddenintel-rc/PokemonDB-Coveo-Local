@@ -35,7 +35,14 @@ Without env vars, the page renders an inline "env missing" banner instead of cra
 
 ## Optional companion package
 
-`tools/seed-ml/` (sibling directory) contains a Playwright runner that warms up the three associated Coveo ML models (`pokemon_QS`, `pokemon_RGA`, `pokemon_ART`) by driving this live app. **Not** installed by `web/` — see `../docs/coveo-admin-playbook.md` §3 Phase 4 for usage.
+`tools/seed-ml/` (sibling directory) is a separate Playwright package that ships two scripts driving this live app — both share one `npm install` and one Chromium binary:
+
+| Script | Purpose |
+|---|---|
+| `npm run seed` | Coveo **ML model warm-up** — submits queries, toggles facets, follows RGA citations to feed `pokemon_QS`, `pokemon_RGA`, and `pokemon_ART`. See `../docs/coveo-admin-playbook.md` §3 Phase 4. |
+| `npm run smoke` | **End-to-end smoke test** — 9 assertions covering home load, Coveo connectivity, result list, type facet, result-card click, detail page render, and regression guards for the duplicate-key React warning and the Coveo `Analytics Mode: "Next"` warning. ~8 seconds against `npm run dev`; exit code 0/1 so it's CI-ready. Add `--headed` to watch it. |
+
+Neither is installed by `web/`; run from `tools/seed-ml/` after the dev server (or hosted app) is up.
 
 ---
 
