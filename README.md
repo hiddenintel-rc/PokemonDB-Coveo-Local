@@ -54,8 +54,8 @@ This section tracks the **Pokémon Challenge (Pre-Sales, 2026)** document line-b
 
 > *"INTERMEDIATE" section of the challenge brief.*
 
-- [ ] **[Ship]** **Host your code on GitHub** and share the link.
-- [ ] **[Ship]** **Host your search app** so reviewers can open it (e.g. Vercel, Netlify — set the same `NEXT_PUBLIC_*` variables in the host dashboard).
+- [x] **[Ship]** **Host your code on GitHub** — push `main` to your remote; reviewers clone or browse the repo.
+- [x] **[Ship]** **Host your search app** — production build is wired through **Vercel** connected to that repo (see [Deployment (GitHub → Vercel)](#deployment-github--vercel) below). Replace the example URL with yours when sharing externally.
 
 ### Advanced
 
@@ -126,6 +126,44 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## Deployment (GitHub → Vercel)
+
+The live search app is delivered by **pushing this repository to GitHub**, then **building and deploying the Next.js app on Vercel** when `main` updates (or when you trigger a redeploy).
+
+### Flow
+
+1. **Develop and commit** in `web/` (and the rest of the repo as needed).
+2. **Push to GitHub** — e.g. `git push origin main`.
+3. **Vercel** — the project is **imported from the same GitHub repo**. Each push (or manual redeploy) runs a production install + `next build` for the app.
+
+### Vercel project settings (required for this monorepo)
+
+This repo’s Next.js app is **not** at the repository root; it lives under **`web/`**. If these are wrong, the deployment can succeed with almost no output and show **404** at `/`.
+
+| Setting | Value |
+|--------|--------|
+| **Root Directory** | `web` |
+| **Framework Preset** | **Next.js** (not “Other”) |
+| **Node.js Version** | **20.x** or **22.x** (LTS) is recommended; redeploy after changing. |
+
+After changing Root Directory or Framework, trigger a **Redeploy** so the new settings apply to a full build.
+
+### Environment variables on Vercel
+
+Add the same **`NEXT_PUBLIC_*`** variables as in local `web/.env.local` (at minimum org ID and API key). Vercel → Project → **Settings → Environment Variables** → scope **Production** (and **Preview** if you use PR previews). Redeploy after edits.
+
+### Example production URL
+
+- Example deployment: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) — update this README or your submission links if your team uses a different project name or custom domain.
+
+For architecture context (Coveo vs app hosting), see [`docs/architecture.md`](./docs/architecture.md) §5.
+
+### Production security (live site)
+
+The `web/` app ships with **nonce-based Content-Security-Policy** (`src/middleware.ts`), **HTTP headers** and **`next/image` allowlists** in `next.config.ts`, and **`PokemonIndexedImage`** so only known HTTPS artwork hosts load in the UI. Details: [`docs/security-review.md`](./docs/security-review.md). **OWASP Top 10 deployment mapping** and `npm audit`: [`docs/owasp-deployment-review.md`](./docs/owasp-deployment-review.md).
+
+---
+
 ## Key References
 
 | Resource | URL |
@@ -148,7 +186,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - Controllers in use: `buildSearchBox` (with QS), `buildResultList` (with `fieldsToInclude`), three `buildFacet`s (type / generation / ability), one `buildNumericFacet` (BST, 5 fixed tier ranges driven by `BST_TIERS`), `buildGeneratedAnswer` (RGA), and a per-card `buildInteractiveResult` for `documentClick` analytics.
 - Detail route at `/pokemon/[slug]` bypasses the engine for its data fetch (`fetch-pokemon-by-slug.ts`) so detail loads don't emit `search` analytics or mutate the home page's engine state.
 
-For the full architecture diagram and runtime boundaries, see [`docs/architecture.md`](./docs/architecture.md). For design rationale, [`docs/design-decisions.md`](./docs/design-decisions.md).
+For the full architecture diagram and runtime boundaries, see [`docs/architecture.md`](./docs/architecture.md). For design rationale, [`docs/design-decisions.md`](./docs/design-decisions.md). For a **security pass** (Vercel env vars, no custom backend in `web/`, headers, CSP), see [`docs/security-review.md`](./docs/security-review.md). For **OWASP Top 10:2021** validation of the deployment (including known dependency findings), see [`docs/owasp-deployment-review.md`](./docs/owasp-deployment-review.md).
 
 ---
 

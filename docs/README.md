@@ -7,11 +7,15 @@ Technical documentation for the Pokémon / Coveo challenge solution. It is writt
 | Document | Purpose |
 |----------|---------|
 | [architecture.md](./architecture.md) | End-to-end system architecture, deployment units, data flow (including ML model paths), and boundaries between Coveo Cloud and the web app. |
-| [design-decisions.md](./design-decisions.md) | DD-1 through DD-15: rationale for stack choices, Headless vs Atomic, client-side ML wiring (ART), client-side BST tier ranges (vs IPE), separate seeder package, detail-page Coveo bypass, CSS3-only scraping selectors, security headers, and analytics-mode `'legacy'` pinning. |
+| [design-decisions.md](./design-decisions.md) | DD-1 through DD-15: rationale for stack choices, Headless vs Atomic, client-side ML wiring (ART), client-side BST tier ranges (vs IPE), separate seeder package, detail-page Coveo bypass, CSS3-only scraping selectors, **HTTP security headers + CSP + `next/image`**, and analytics-mode `'legacy'` pinning. |
 | [application-components.md](./application-components.md) | Next.js application structure, React modules, hooks, and how UI regions map 1:1 to Headless controllers (including `buildNumericFacet`, `buildGeneratedAnswer`, `buildInteractiveResult`). |
 | [coveo-platform-and-headless.md](./coveo-platform-and-headless.md) | **Coveo-specific:** platform pieces in use (source, fields, three ML models, query pipeline), the seven Headless controllers, APIs called, and what the toolset provides versus custom code. |
 | [coveo-admin-playbook.md](./coveo-admin-playbook.md) | **Operational how-to:** step-by-step Admin Console procedures — adding a new facet (Field → Web Scraping → Mapping → Rebuild → app), the worked **BST example** with all 7 selectors, Featured Result pinning, and the ML model lifecycle (Create model → Associate → App opt-in → Verify/warm-up via `tools/seed-ml/`). |
 | [next-steps.md](./next-steps.md) | **Scope log + forward roadmap:** Ability + BST facets and the `/pokemon/[slug]` detail route (all Shipped); 10 Coveo platform optimization opportunities (Featured Results / Thesaurus / QS / RGA / ART / ranking expressions / Passage Retrieval / DNE) with Shipped / Planned / Deferred status flags. |
+| [security-review.md](./security-review.md) | **Security pass:** CSP (nonce middleware + tight `img-src` / `connect-src`), `next/image` allowlists, HTTP headers, `NEXT_PUBLIC_*` semantics, and follow-ups (search tokens, new image hosts, Next middleware deprecation). |
+| [owasp-deployment-review.md](./owasp-deployment-review.md) | **OWASP Top 10:2021** mapping for the live deployment: access control, crypto/TLS, injection, misconfiguration, components (`npm audit`), SSRF, logging gaps, and a short release checklist. |
+
+**Hosting:** The Next.js deliverable is built from **`web/`** and deployed by **Vercel** against the **GitHub** remote (push → build → live site). See the root [`README.md`](../README.md#deployment-github--vercel) section *Deployment (GitHub → Vercel)* and [`architecture.md`](./architecture.md) §5.
 
 ## Repository layout (quick reference)
 

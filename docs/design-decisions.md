@@ -135,27 +135,35 @@ A naive `<a href={result.clickUri} target="_blank">` on the title would have sat
 
 **Trade-off:** Position-anchored selectors break if pokemondb ever reorders the stats table. Pragmatically: the Pokémon community's HP/Atk/Def/SpA/SpD/Spe ordering has been canonical for 20+ years across every dex site on the internet; the brittleness is theoretical, not practical.
 
-## DD-14: HTTP security headers — basic set now, CSP deferred to pre-deploy
+## DD-14: HTTP security headers + CSP (production)
 
-**Decision:** Four universal security headers are set via `next.config.ts` `headers()` for all routes:
+**Decision:** Layer **defense in depth** for the live site:
 
-- `X-Frame-Options: DENY` — prevents clickjacking via iframe embedding.
-- `X-Content-Type-Options: nosniff` — stops browsers MIME-sniffing response types.
-- `Referrer-Policy: strict-origin-when-cross-origin` — sends full URL on same-origin requests, only the origin on cross-origin (prevents leaking search terms to Coveo's origin via the Referer header).
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()` — removes access to hardware APIs this app never uses.
+1. **`next.config.ts` `headers()`** — applies to **all** responses (including `/_next/static`):
 
-**Deliberately deferred — Content Security Policy (CSP):** A correct CSP for this app must cover:
-- `connect-src`: `platform.cloud.coveo.com` (Search API + analytics + RGA streaming).
-- `font-src`: `fonts.gstatic.com` (Geist font via `next/font/google`).
-- `style-src`: must include `'unsafe-inline'` or a per-request nonce because Tailwind generates `style="width:…%"` inline attributes (stat bars) and Next.js injects critical CSS inline.
-- `img-src`: `img.pokemondb.net` plus Coveo's CDN domain (for `syspictureuri` fallback — domain to be confirmed in Content Browser).
+   - `X-Frame-Options: DENY` — clickjacking.
+   - `X-Content-Type-Options: nosniff` — MIME sniffing.
+   - `Referrer-Policy: strict-origin-when-cross-origin` — avoids leaking full internal URLs to third parties on cross-origin navigations.
+   - `Permissions-Policy: camera=(), microphone=(), geolocation=()` — unused hardware APIs.
+   - **`X-DNS-Prefetch-Control: off`** — no ambient DNS prefetch for linked third-party origins.
 
-A CSP with `'unsafe-inline'` for `style-src` weakens the primary XSS benefit. The correct path is either a nonce-based CSP (requires Next.js middleware) or waiting until the inline style is replaced with a CSS custom property. **Tracked as a pre-deploy checklist item** — do not ship to Vercel without it.
+2. **`src/middleware.ts`** — **Content-Security-Policy** on HTML navigations (matcher excludes static assets and the image optimizer):
 
-**Other deferred pre-deploy items (security audit, May 2026):**
-- Switch `<img src={picture}>` to `next/image` with `remotePatterns: [{ hostname: 'img.pokemondb.net' }]` (add Coveo CDN hostname once confirmed). Enforces domain allowlist and enables image optimization.
-- `npm audit` reports `postcss <8.5.10` (GHSA-qx2v-qp2m-jg93, moderate) inside `next/node_modules/postcss`. PostCSS runs only at build time and never processes user-controlled input in this app, so effective risk is negligible. **Do not run `npm audit fix --force`** — it would downgrade Next.js to 9.3.3. Watch for a Next.js patch that bumps its internal PostCSS and upgrade when available.
-- `NEXT_PUBLIC_COVEO_API_KEY` in the client JS bundle is acceptable for an Anonymous Search key on public content (search-only, no admin access). For production, the correct mitigation is a server-side search token endpoint (DD-3). The key must never be an admin key or a key with write access.
+   - Per-request **nonce** on `script-src` and `style-src` with **`'strict-dynamic'`** so Next.js can load the app shell safely.
+   - **`img-src`** allowlists `self`, `blob:`/`data:` (for `next/image`), pokemondb hosts, and **`https://*.cloud.coveo.com`** for Coveo-hosted thumbnails.
+   - **`connect-src`** allowlists Coveo Search + **legacy Usage Analytics** (ML/ART/QS/RGA): `https://*.cloud.coveo.com`, **`wss://*.cloud.coveo.com`** (streaming / long-lived connections), explicit US/EU/**AU** `analytics*.` + `platform*.` hosts, and **`https://static.cloud.coveo.com`**. Matches Headless **`analyticsMode: 'legacy'`** (`search-instance.ts`) — UA events (`search`, `searchQuerySuggest`, `facetSelect`, `documentClick`, `genqa.*`, etc.) POST to regional analytics hosts under `*.cloud.coveo.com`.
+   - **`object-src 'none'`**, **`base-uri 'self'`**, **`form-action 'self'`**, **`frame-ancestors 'none'`**, **`upgrade-insecure-requests`**.
+
+3. **`next.config.ts` `images.remotePatterns`** — `next/image` may only optimize URLs from **`img.pokemondb.net`**, **`www.pokemondb.net`**, and **`*.cloud.coveo.com`**.
+
+4. **No inline `style` attributes on stat bars** — `PokemonDetailView` **SVG** bar widths avoid `'unsafe-inline'` on `style-src` (rejected earlier approach).
+
+**Trade-off:** If the index ever stores artwork on a **new** HTTPS host, images show **No image** until that hostname is added to **`PokemonIndexedImage`**, **`images.remotePatterns`**, and the CSP **`img-src`** directive (three coordinated edits). **Next.js 16.2** may log a deprecation notice about migrating **`middleware`** → **`proxy`** — follow upstream guidance when upgrading.
+
+**Other deferred items (security audit):**
+
+- `npm audit` / PostCSS advisory — same guidance as before: do not `npm audit fix --force` blindly; watch Next.js patch releases.
+- **`NEXT_PUBLIC_COVEO_API_KEY`** — still acceptable only for **Anonymous Search** on public content; production hardening remains **search tokens** from a backend (**DD-3**).
 
 ## DD-15: Analytics mode pinned to `'legacy'` (rejected: Headless v3 default `'next'`)
 

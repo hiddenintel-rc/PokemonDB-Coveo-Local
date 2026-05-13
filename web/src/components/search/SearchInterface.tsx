@@ -17,6 +17,7 @@ import type {
   SearchBoxState,
 } from "@coveo/headless";
 import Link from "next/link";
+import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -158,14 +159,13 @@ function PokemonCard({ result }: { result: Result }) {
 
   const cardBody = (
     <article className="flex gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors group-hover:border-emerald-300 group-hover:bg-emerald-50/40 dark:border-zinc-800 dark:bg-zinc-950 dark:group-hover:border-emerald-800/60 dark:group-hover:bg-emerald-950/20">
-      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-900">
+      <div className="relative h-24 w-24 shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-900">
         {picture ? (
-          // eslint-disable-next-line @next/next/no-img-element -- dynamic Coveo image URLs
-          <img
+          <PokemonIndexedImage
             src={picture}
-            alt=""
-            className="h-full w-full object-contain"
-            loading="lazy"
+            sizes="96px"
+            boxClassName="h-24 w-24 rounded-lg bg-zinc-100 dark:bg-zinc-900"
+            imageClassName="object-contain"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-zinc-400">

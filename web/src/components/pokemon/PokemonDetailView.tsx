@@ -7,6 +7,7 @@ import {
   normalizeSlug,
   type PokemonDetailHit,
 } from "@/coveo/fetch-pokemon-by-slug";
+import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import { BST_TIERS } from "@/coveo/search-instance";
 
 type ViewState =
@@ -70,11 +71,26 @@ function StatRow({ label, value }: { label: string; value: number }) {
       <span className="text-right text-sm tabular-nums font-medium text-zinc-800 dark:text-zinc-200">
         {value}
       </span>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-        <div
-          className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400"
-          style={{ width: `${pct}%` }}
-        />
+      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <svg
+          viewBox="0 0 100 4"
+          preserveAspectRatio="none"
+          className="block h-2 w-full text-emerald-500 dark:text-emerald-400"
+          aria-hidden
+        >
+          <rect
+            width="100"
+            height="4"
+            className="fill-zinc-100 dark:fill-zinc-800"
+            rx="2"
+          />
+          <rect
+            width={pct}
+            height="4"
+            className="fill-current"
+            rx="2"
+          />
+        </svg>
       </div>
     </div>
   );
@@ -298,14 +314,14 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
         className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
       >
         <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-start">
-          <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-900">
+          <div className="h-48 w-48 shrink-0 rounded-xl bg-zinc-100 dark:bg-zinc-900">
             {picture ? (
-              // eslint-disable-next-line @next/next/no-img-element -- dynamic Coveo image URLs
-              <img
+              <PokemonIndexedImage
                 src={picture}
-                alt=""
-                className="h-full w-full object-contain"
-                loading="eager"
+                sizes="192px"
+                boxClassName="h-48 w-48 rounded-xl bg-zinc-100 dark:bg-zinc-900"
+                imageClassName="object-contain"
+                priority
               />
             ) : (
               <div className="flex h-full items-center justify-center text-xs text-zinc-400">

@@ -12,6 +12,10 @@ npm run dev                     # http://localhost:3000
 
 Without env vars, the page renders an inline "env missing" banner instead of crashing — `next build` and `npm run lint` both succeed without Coveo credentials.
 
+## Production (GitHub → Vercel)
+
+The challenge **hosted app** is satisfied by connecting **Vercel** to the **GitHub** repository: pushes to `main` trigger a production build of this package. In the Vercel dashboard, set **Root Directory** to **`web`**, **Framework Preset** to **Next.js**, mirror **`NEXT_PUBLIC_*`** env vars from `.env.local`, then **redeploy** after any settings change. Step-by-step narrative lives in the repo root **[`README.md`](../README.md#deployment-github--vercel)**.
+
 ## Scripts
 
 | Command | What it does |

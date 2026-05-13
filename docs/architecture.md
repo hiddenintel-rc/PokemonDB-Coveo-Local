@@ -69,8 +69,10 @@ flowchart TB
 | Artifact | Hosting |
 |----------|---------|
 | Coveo org (`roelc_Pokemon` trial) | Coveo Cloud. Holds the source, fields, default query pipeline, and three associated ML models. |
-| Next.js app | Developer machine (`npm run dev`) today; planned move to **Vercel** / **Azure** for the "hosted app" challenge requirement. |
+| Next.js app | **Local:** `cd web && npm run dev`. **Production:** **GitHub** is the source of truth; **Vercel** imports the repo, uses **Root Directory `web`**, **Framework Preset Next.js**, and the same **`NEXT_PUBLIC_*`** env vars as local; pushes to `main` (or a manual redeploy) run `next build` and serve the App Router app. Example: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) (replace with your deployment URL when documenting for reviewers). |
 | Optional ML seeder | `tools/seed-ml/` Playwright runner — separate npm package; not installed by `web/` so production contributors get a lean dependency tree. |
+
+**Pipeline (summary):** code changes are **committed and pushed to GitHub** → Vercel **builds** the `web/` package → the **live site** serves static + serverless output for Next.js. Operational checklist (root directory, framework preset, Node version, redeploy after settings changes) is documented in the root `README.md` section *Deployment (GitHub → Vercel)*. **Security:** HTTP headers in `next.config.ts`, **CSP + nonce middleware** (`web/src/middleware.ts`), and **`next/image` allowlists** — see [security-review.md](./security-review.md) and **DD-14** in [design-decisions.md](./design-decisions.md).
 
 Environment variables for the browser build use the **`NEXT_PUBLIC_`** prefix so the Headless engine can read **organization ID** and **access token** at runtime on the client. The UI only mounts the configured search surface when both org ID and API key are non-empty (**`coveoConfigured()`** in `web/src/coveo/search-instance.ts`).
 

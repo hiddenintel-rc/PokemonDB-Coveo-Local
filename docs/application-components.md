@@ -17,12 +17,13 @@ This describes the **deliverable codebase** under **`web/`**: routing, React com
 web/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout, fonts, metadata
+│   │   ├── layout.tsx          # Root layout — async; passes CSP `nonce` from middleware to `<html>`
 │   │   ├── page.tsx            # Home route — renders SearchInterface shell
 │   │   ├── pokemon/
 │   │   │   └── [slug]/
 │   │   │       └── page.tsx    # Dynamic detail route — renders PokemonDetailView (key={slug})
 │   │   └── globals.css         # Global styles / Tailwind entry
+│   ├── middleware.ts           # Per-request CSP + `x-nonce` for Next.js script/style nonces
 │   ├── coveo/
 │   │   ├── search-instance.ts          # Headless engine + controller singletons
 │   │   └── fetch-pokemon-by-slug.ts    # One-off Coveo Search API fetch (no analytics)
@@ -30,7 +31,8 @@ web/
 │   │   ├── search/
 │   │   │   └── SearchInterface.tsx     # Search UI, facets, results, env gate
 │   │   └── pokemon/
-│   │       └── PokemonDetailView.tsx   # Detail page: skeleton/found/not-found/error states
+│   │       ├── PokemonDetailView.tsx   # Detail page: skeleton/found/not-found/error states
+│   │       └── PokemonIndexedImage.tsx # `next/image` wrapper — HTTPS allowlist (pokemondb + Coveo CDN)
 │   └── hooks/
 │       └── useCoveoController.ts       # Generic subscribe → React state bridge
 ├── .env / .env.local           # Local credentials (gitignored); copy from `.env.example`
@@ -54,12 +56,22 @@ Marked **`"use client"`**. Two-tier structure:
 |-----------------|--------|
 | **`SearchInterface`** | If **`coveoConfigured()`** is false (missing org ID or API key), renders **`EnvMissingBanner`** (copy **`.env.example`** to **`.env.local`** per on-screen copy; **`.env`** works too). Otherwise renders **`SearchInterfaceConfigured`**. |
 | **`SearchInterfaceConfigured`** | Obtains controllers, subscribes via hooks, runs **`executeFirstSearch()`** once on mount, renders search form, facet columns, and result list. |
-| **`PokemonCard`** | Presentational row/card for one **`Result`**, wrapped in a Next.js **`<Link href={'/pokemon/' + slug}>`** so the whole card navigates to the internal detail route. Slug derived from **`clickUri`** via **`slugFromClickUri`**. A per-result **`buildInteractiveResult`** controller emits a `documentClick` analytics event on click (`select()`) — feeds Automatic Relevance Tuning (ART). Image URL falls through **`pictureuri`** → **`picture_uri`** → **`syspictureuri`** in **`result.raw`**; types from **`pokemontype`** via **`facetValues`**; generation from **`pokemongeneration`** or **`pokemon_generation`**; BST integer from **`pokemonbst`** via **`bstFromRaw`**, rendered as a `tabular-nums` emerald chip in the card header next to the title. |
+| **`PokemonCard`** | Presentational row/card for one **`Result`**, wrapped in a Next.js **`<Link href={'/pokemon/' + slug}>`** so the whole card navigates to the internal detail route. Slug derived from **`clickUri`** via **`slugFromClickUri`**. A per-result **`buildInteractiveResult`** controller emits a `documentClick` analytics event on click (`select()`) — feeds Automatic Relevance Tuning (ART). Image URL falls through **`pictureuri`** → **`picture_uri`** → **`syspictureuri`** in **`result.raw`** and is rendered with **`PokemonIndexedImage`** (`next/image`, allowlisted HTTPS hosts only). Types from **`pokemontype`** via **`facetValues`**; generation from **`pokemongeneration`** or **`pokemon_generation`**; BST integer from **`pokemonbst`** via **`bstFromRaw`**, rendered as a `tabular-nums` emerald chip in the card header next to the title. |
 | **`PRODUCT_FILTER_IDS`** | Stable **`data-product-filter`** ids (**`pokemon-type`**, **`pokemon-generation`**, **`pokemon-ability`**, **`pokemon-bst`**) for CSS targeting; exported next to the filter UI. |
 | **`ProductFacetFilterSection`** | One collapsible facet panel (**`<details>`**, closed by default): shared chrome + **`data-product-filter`**. |
 | **`ProductFacetOptionRow`** | Uniform checkbox row: **`data-filter-option`**, BEM-style **`product-filter__*`** classes. |
 
 Facet sidebar wrapper: **`data-region="product-filters"`** (`aria-label="Product filters"`). Styling hook reference comment lives in **`globals.css`**.
+
+## Edge middleware: `middleware.ts`
+
+Runs on **document** requests (matcher skips `/_next/static`, `/_next/image`, `favicon.ico`, and common static file extensions). Sets **`Content-Security-Policy`** with a per-request **nonce** (`script-src` / `style-src`), allowlists **`connect-src`** for Coveo **Search + legacy UA analytics + WebSockets** (`https://*.cloud.coveo.com`, `wss://*.cloud.coveo.com`, explicit `platform*` / `analytics*` / `analytics-au` / `static.cloud.coveo.com`) so **ART**, **QS**, **RGA**, and facet/click signals reach Coveo ML, and **`img-src`** to self, `blob:`/`data:` (for `next/image`), pokemondb, and **`*.cloud.coveo.com`**. Injects **`x-nonce`** on the request so **`app/layout.tsx`** can forward it to **`<html nonce={…}>`** for Next.js–compatible CSP (see Next.js CSP docs).
+
+## Client module: `PokemonIndexedImage.tsx`
+
+| Symbol | Purpose |
+|--------|---------|
+| **`PokemonIndexedImage`** | **`"use client"`**. Wraps **`next/image`** with **`fill`** for known HTTPS hosts only (`img.pokemondb.net`, `www.pokemondb.net`, any **`*.cloud.coveo.com`**). Unknown URLs render the same **No image** placeholder so arbitrary `src` strings cannot widen the CSP surface. Used by **`PokemonCard`** and **`PokemonDetail`**. |
 
 ## Client module: `PokemonDetailView.tsx`
 
@@ -68,8 +80,8 @@ Marked **`"use client"`**. Four render states driven by a `ViewState` discrimina
 | Symbol | Purpose |
 |--------|---------|
 | **`PokemonDetailView`** | Exported. Dispatches to skeleton / found / not-found / error sub-renders. `key={slug}` on the parent call-site remounts on slug navigation (fresh `loading` state, no cascading `setState`). |
-| **`PokemonDetail`** | Renders the full detail card: hero image, title, **Types** / **Generation** / **Abilities** badge lists, **`BaseStatsSection`**, and a footer link back to pokemondb.net. |
-| **`BaseStatsSection`** | Renders the six individual base stats (HP / Attack / Defense / Sp. Atk / Sp. Def / Speed) as labeled bar rows scaled to 255 (Blissey's HP ceiling), plus a **Total** row showing the raw BST integer and its tier label (e.g. `Legendary`). Imports **`BST_TIERS`** from `search-instance.ts` for tier resolution. Renders `null` if no stat data is in `raw`. |
+| **`PokemonDetail`** | Renders the full detail card: hero image via **`PokemonIndexedImage`**, title, **Types** / **Generation** / **Abilities** badge lists, **`BaseStatsSection`**, and a footer link back to pokemondb.net. |
+| **`BaseStatsSection`** | Renders the six individual base stats (HP / Attack / Defense / Sp. Atk / Sp. Def / Speed) as labeled **SVG** bar rows (no inline `style` — CSP-friendly), scaled to 255 (Blissey's HP ceiling), plus a **Total** row showing the raw BST integer and its tier label (e.g. `Legendary`). Imports **`BST_TIERS`** from `search-instance.ts` for tier resolution. Renders `null` if no stat data is in `raw`. |
 | **`PokemonDetailSkeleton`** | Animated pulse placeholder shown while the fetch is in-flight. |
 | **`PokemonNotFound`** | Displayed when Coveo returns no hits for the slug. |
 | **`PokemonDetailError`** | Displayed on fetch errors (network, bad status, credential issues). |
