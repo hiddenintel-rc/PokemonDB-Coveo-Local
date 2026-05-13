@@ -82,7 +82,7 @@ This document maps the **`web/`** app (Vercel + Coveo Headless, public search) t
 **Gaps / actions**
 
 - **Quota / abuse:** Anyone can use the embedded key for **search volume** against the org. Mitigations: **rate limits** (Coveo/org policies), **search tokens** + backend throttling, or IP rules—not implemented in static hosting alone.
-- **Privacy:** Search queries leave the browser to Coveo—acceptable for this challenge; document for enterprise reviewers.
+- **Privacy:** Search queries leave the browser to Coveo; document data handling for any enterprise deployment where that matters.
 
 ---
 

@@ -1,19 +1,19 @@
 ---
-description: Core Coveo platform knowledge for the Pokemon Challenge project
+description: Core Coveo platform knowledge for the Pokémon search (Headless + Next.js) project
 alwaysApply: true
 ---
 
-# Coveo Platform — Pokemon Challenge Context
+# Coveo Platform — Application context
 
-## Challenge Goal
-Build a Coveo-powered search page that indexes **pokemondb.net** and exposes a relevance-quality search experience. **Current shipped scope (May 2026):**
+## Product scope
+This app indexes **pokemondb.net** species pages and exposes a relevance-oriented search UI. **Shipped capabilities:**
 
 - Facet filter by **Pokémon Type** (`pokemontype`)
 - Facet filter by **Pokémon Generation** (`pokemongeneration`)
 - Facet filter by **Ability** (`pokemonability`)
 - Facet filter by **Base Stat Total** (`pokemonbst`) — 5 labeled community tiers via `buildNumericFacet`
 - Pokémon **picture displayed** directly in each result card
-- **BST badge** chip on each card
+- **BST line** on each card (total from index)
 - **Pokémon detail page** (`/pokemon/[slug]`) reachable from each result
 - **Query Suggestions** (`pokemon_QS` model, app combobox)
 - **Relevance Generative Answering** (`pokemon_RGA` model, citations + feedback)

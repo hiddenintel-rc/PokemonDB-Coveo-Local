@@ -70,7 +70,7 @@ flowchart TB
 | Artifact | Hosting |
 |----------|---------|
 | Coveo org (`roelc_Pokemon` trial) | Coveo Cloud. Holds the source, fields, default query pipeline, and three associated ML models. |
-| Next.js app | **Local:** `cd web && npm run dev`. **Production:** **GitHub** is the source of truth; **Vercel** imports the repo, uses **Root Directory `web`**, **Framework Preset Next.js**, and the same **`NEXT_PUBLIC_*`** env vars as local; pushes to `main` (or a manual redeploy) run `next build` and serve the App Router app. Example: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) (replace with your deployment URL when documenting for reviewers). |
+| Next.js app | **Local:** `cd web && npm run dev`. **Production:** **GitHub** is the source of truth; **Vercel** imports the repo, uses **Root Directory `web`**, **Framework Preset Next.js**, and the same **`NEXT_PUBLIC_*`** env vars as local; pushes to `main` (or a manual redeploy) run `next build` and serve the App Router app. Example: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) (replace with your deployment URL when documenting for stakeholders). |
 | Optional ML seeder | `tools/seed-ml/` Playwright runner — separate npm package; not installed by `web/` so production contributors get a lean dependency tree. |
 
 **Pipeline (summary):** code changes are **committed and pushed to GitHub** → Vercel **builds** the `web/` package → the **live site** serves static + serverless output for Next.js. Operational checklist (root directory, framework preset, Node version, redeploy after settings changes) is documented in the root `README.md` section *Deployment (GitHub → Vercel)*. **Security:** HTTP headers in `next.config.ts`, **CSP + nonce middleware** (`web/src/middleware.ts`), and **`next/image` allowlists** — see [security-review.md](./security-review.md) and **DD-14** in [design-decisions.md](./design-decisions.md).
@@ -95,4 +95,4 @@ Environment variables for the browser build use the **`NEXT_PUBLIC_`** prefix so
 | UI — pagination | `buildPager` controller. | Not implemented (small dex ~1300 species fits one search) |
 | UI — sort | `buildSort` controller. Sortable fields available: all 7 integer stat fields. | Not implemented |
 | UI — related Pokémon strip on detail page | Second Coveo query filtered by type/generation. | Deferred (see `next-steps.md`) |
-| Bonus — Passage Retrieval API | Either build OR a written POV. | Not implemented; counts for the **Bonus** challenge item if delivered |
+| Bonus — Passage Retrieval API | Optional extension: build against the Passage Retrieval API or document a POV. | Not implemented (see `next-steps.md` §3.9). |

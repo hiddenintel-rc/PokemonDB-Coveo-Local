@@ -1,12 +1,12 @@
 # Design decisions
 
-This document records **why** the solution is shaped the way it is. It is intended for architects and reviewers of the challenge submission.
+This document records **why** the solution is shaped the way it is. It is intended for architects and developers maintaining the application.
 
 ## DD-1: Coveo UI stack — Headless instead of Atomic
 
 **Decision:** Use **`@coveo/headless`** with a custom React UI (Next.js), not **Coveo Atomic** (web components).
 
-**Context:** The challenge allows either Atomic or Headless. Atomic accelerates a standard search page; Headless keeps all presentation in application code.
+**Context:** Coveo offers **Atomic** (web components) or **Headless** (framework-agnostic controllers). This project uses Headless for full control in React.
 
 **Rationale:**
 
@@ -27,7 +27,7 @@ This document records **why** the solution is shaped the way it is. It is intend
 **Rationale:**
 
 - Avoid creating the engine during prerender when credentials are absent; empty org/token values interact badly with **`buildSearchEngine`** during **`next build`**.
-- Challenge **local dev** expectation: Anonymous Search API key for **public** crawled content.
+- Typical **local development** pattern: Anonymous Search API key for **public** crawled content.
 
 **Trade-off:** Credentials are exposed to anyone who can load the deployed JS bundle—acceptable only for **public** content and **Anonymous Search** keys; production patterns should use **search tokens** from a backend.
 
@@ -51,7 +51,7 @@ This document records **why** the solution is shaped the way it is. It is intend
 
 **Decision (documented at platform level):** Use a **cloud Web** source (not Crawling Module) for public pokemondb.net, with **inclusion/exclusion** rules so the index favors **`/pokedex/{species}`** pages.
 
-**Rationale:** Matches challenge wording (“only actual Pokémon pages”). Detailed URL patterns live in Admin Console and in `.cursor/rules/coveo-indexing.mdc`; they are not duplicated as executable code in the repo.
+**Rationale:** Matches the documented crawling goal of indexing only canonical species URLs. Detailed URL patterns live in Admin Console and in `.cursor/rules/coveo-indexing.mdc`; they are not duplicated as executable code in the repo.
 
 ## DD-7: Field naming convention for indexed Pokémon attributes
 
@@ -77,7 +77,7 @@ This document records **why** the solution is shaped the way it is. It is intend
 **Rationale:** Two requirements collided neatly here:
 
 1. **ART training signal** — without `interactiveResult.select()`, clicking a result card emits zero analytics. ART (Automatic Relevance Tuning) consumes `documentClick` events to re-rank future searches; without this wiring the model has nothing to learn from.
-2. **Internal detail route** — the challenge brief's Advanced item asks for a Pokémon detail page; routing through a Next.js `<Link>` is the idiomatic way to navigate without a full reload.
+2. **Internal detail route** — the product includes a per-species page; routing through a Next.js `<Link>` is the idiomatic way to navigate without a full reload.
 
 A naive `<a href={result.clickUri} target="_blank">` on the title would have satisfied neither: no analytics event, no internal navigation.
 
@@ -195,6 +195,6 @@ This project is a non-Commerce Search implementation on a trial org. Pinning `'l
 
 **Detail fetch URI OR-list:** `fetchPokemonBySlug` queries `@uri` against both `pokemondb.net` and `www.pokemondb.net`, with and without a trailing slash, so slug lookup succeeds regardless of which canonical host the index stored.
 
-**Rationale:** Reviewers and production users should see one cohesive light Pokédex catalog across `/` and `/pokemon/...`, including when the OS requests dark mode — without maintaining a second dark-theme layout for the detail stats rail.
+**Rationale:** End users should see one cohesive light Pokédex catalog across `/` and `/pokemon/...`, including when the OS requests dark mode — without maintaining a second dark-theme layout for the detail stats rail.
 
 **Trade-off:** Wide-desktop users no longer get stats in a persistent side column; the stats card scrolls with the page. If a side-by-side layout returns later, `SidePanel` shell styles now force `dark:!bg-white` so the panel cannot revert to `zinc-900` accidentally.

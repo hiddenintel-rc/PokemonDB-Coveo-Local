@@ -1,6 +1,6 @@
 # `web/` — Pokémon Search (Next.js + `@coveo/headless`)
 
-The deliverable Next.js application for the Coveo Pokémon Challenge. Architecture, design decisions, Coveo admin procedures, and the project roadmap live one directory up — see **[`../README.md`](../README.md)** for the entry point and **[`../docs/`](../docs/README.md)** for the full doc set.
+The Next.js application for this repository. Architecture, design decisions, Coveo admin procedures, and the roadmap live one directory up — see **[`../README.md`](../README.md)** for the entry point and **[`../docs/`](../docs/README.md)** for the full doc set.
 
 ## Quick start
 
@@ -14,7 +14,7 @@ Without env vars, the page renders an inline "env missing" banner instead of cra
 
 ## Production (GitHub → Vercel)
 
-The challenge **hosted app** is satisfied by connecting **Vercel** to the **GitHub** repository: pushes to `main` trigger a production build of this package. In the Vercel dashboard, set **Root Directory** to **`web`**, **Framework Preset** to **Next.js**, mirror **`NEXT_PUBLIC_*`** env vars from `.env.local`, then **redeploy** after any settings change. Step-by-step narrative lives in the repo root **[`README.md`](../README.md#deployment-github--vercel)**.
+Production hosting uses **Vercel** connected to the **GitHub** repository: pushes to `main` trigger a production build of this package. In the Vercel dashboard, set **Root Directory** to **`web`**, **Framework Preset** to **Next.js**, mirror **`NEXT_PUBLIC_*`** env vars from `.env.local`, then **redeploy** after any settings change. Step-by-step narrative lives in the repo root **[`README.md`](../README.md#deployment-github--vercel)**.
 
 ## Scripts
 

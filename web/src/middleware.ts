@@ -24,7 +24,7 @@ function generateNonce(): string {
  * - `https://*.org.coveo.com` — **Search API** host pattern Headless uses (`{organizationId}.org.coveo.com/rest/search/v2`).
  *   Without this, the browser blocks search with CSP and Headless reports `Disconnected` / statusCode 0.
  * - `wss://*.cloud.coveo.com` — **connect-src** applies to WebSockets separately; RGA / streaming may use `wss:` to the platform.
- * - Explicit US/EU analytics + `static.cloud.coveo.com` — belt-and-suspenders for reviewers and older hard-coded clients.
+ * - Explicit US/EU analytics + `static.cloud.coveo.com` — belt-and-suspenders for analytics connectivity and older hard-coded clients.
  *
  * If the Admin Console shows a different region host after a migration, add it here (or rely on `*.cloud.coveo.com` if it matches).
  */

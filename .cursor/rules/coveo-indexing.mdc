@@ -20,7 +20,7 @@ Avoid keeping only `https://pokemondb.net/` as the sole start URL if you use a *
 
 ### 2. Inclusions
 
-**Recommended for the challenge (“only actual Pokémon pages”):** use a **regex** inclusion so only **one path segment** after `/pokedex/` matches (species slugs like `bulbasaur`). See **§4 Alternative: regex** below. That avoids indexing `…/pokedex/foo/moves/9`, `…/game/…`, etc., without maintaining a long exclusion list.
+**Recommended for species-only indexing:** use a **regex** inclusion so only **one path segment** after `/pokedex/` matches (species slugs like `bulbasaur`). See **§4 Alternative: regex** below. That avoids indexing `…/pokedex/foo/moves/9`, `…/game/…`, etc., without maintaining a long exclusion list.
 
 **Broader option (more exclusions needed):** Under **Inclusions**, select **Include non-excluded pages that match at least one rule**, then add:
 
@@ -46,7 +46,7 @@ Add **Exclusion** rules so list/game pages are not indexed as if they were Poké
 - `https://pokemondb.net/pokedex/game/*`
 - `https://pokemondb.net/pokedex/stats/*` (if present / if you see these in Content Browser)
 
-**Learnsets (required — easy to miss):** Pokémon move *learnset* pages use **`/moves/`** (plural), e.g. `…/pokedex/arctibax/moves/9`. A rule **`contains /move/`** matches the site’s **`/move/…`** encyclopedia URLs but **does not** match **`/moves/`**. Add **`contains /moves/`** (or wildcard `https://pokemondb.net/pokedex/*/moves/*`) so those pages are excluded per challenge (“exclude … Moves”).
+**Learnsets (required — easy to miss):** Pokémon move *learnset* pages use **`/moves/`** (plural), e.g. `…/pokedex/arctibax/moves/9`. A rule **`contains /move/`** matches the site’s **`/move/…`** encyclopedia URLs but **does not** match **`/moves/`**. Add **`contains /moves/`** (or wildcard `https://pokemondb.net/pokedex/*/moves/*`) so those pages are excluded alongside other non-species paths.
 
 **Other site areas** (species pages link to these; belt-and-suspenders **contains** rules work well):
 

@@ -9,7 +9,7 @@ This document answers two architect-level questions:
 
 ## 1. Coveo Cloud platform (Admin Console)
 
-These are **not npm packages**; they are capabilities configured in **Coveo Administration Console** for the organization used in the challenge.
+These are **not npm packages**; they are capabilities configured in **Coveo Administration Console** for the organization that backs this deployment.
 
 | Platform component | Role in this project |
 |--------------------|----------------------|
@@ -33,7 +33,7 @@ These are **not npm packages**; they are capabilities configured in **Coveo Admi
 |---|---|
 | **Coveo Atomic / Quantic** components | UI is custom React (see `design-decisions.md` DD-1). |
 | **`@coveo/headless-react`** (SSR-oriented) | Client-only rendering is sufficient; revisit when hosted deployment + search tokens land. |
-| **Passage Retrieval API** | Bonus challenge item — accepts either build OR POV writeup; not yet started (see `next-steps.md` §3.9). |
+| **Passage Retrieval API** | Optional extension — build or POV writeup; not started (see `next-steps.md` §3.9). |
 | **Smart Snippets** | Overlaps with RGA, which already handles the "single best answer" role. |
 | **Dynamic Navigation Experience (DNE)** | Requires migrating to `buildFacetGenerator` — not worth the refactor with 4 hand-rolled facets (see `next-steps.md` §3.10). |
 | **Search-token issuance** | Needs a backend route; out of scope for the local-dev scaffold. |

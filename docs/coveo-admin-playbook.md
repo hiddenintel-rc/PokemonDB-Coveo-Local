@@ -290,7 +290,7 @@ Or use the shortcut links on a pipeline's **Overview** tab ("Create a new ART mo
 | Model name | `pokemon_QS` | Lowercase + underscore convention; suffix the type (`_QS`, `_ART`, `_RGA`) so a pipeline's Machine Learning tab is self-documenting. |
 | Model type | **Query Suggestions** | Other options: ART, RGA, Smart Snippets, DNE, Recommendations, Case Assist Classification, etc. Trial orgs may not include all. |
 | Sources | Select your indexed source(s) — `PokemonDB Crawl` | Restricts which content the model trains on. For a single-source org, just pick everything. |
-| Project assignment | `PokemonDB Challenge` | Lets the model show up under Projects → Resources → Machine Learning Models. Optional but tidy. |
+| Project assignment | `PokemonDB` (or your team label) | Lets the model show up under Projects → Resources → Machine Learning Models. Optional but tidy. |
 | Advanced options | Defaults are fine | E.g. for QS: filter expressions, language, candidate-count limits — unnecessary at this stage. |
 
 **Initial status will be "Limited"** with a warning like "Build issues exist that may affect model performance." This is normal — it means the model exists but has insufficient training data (candidate count typically `0` at creation). It is **not** an error.

@@ -1,6 +1,6 @@
 # Project documentation
 
-Technical documentation for the Pokémon / Coveo challenge solution. It is written for **solution architects**, **tech leads**, and **developers** onboarding to the codebase or Coveo footprint.
+Technical documentation for this **Coveo + Next.js** Pokémon search reference application. It is written for **solution architects**, **tech leads**, and **developers** onboarding to the codebase or Coveo footprint.
 
 ## Contents
 
@@ -11,7 +11,7 @@ Technical documentation for the Pokémon / Coveo challenge solution. It is writt
 | [application-components.md](./application-components.md) | Next.js application structure, React modules, hooks, and how UI regions map 1:1 to Headless controllers (including `buildNumericFacet`, `buildGeneratedAnswer`, `buildInteractiveResult`). |
 | [coveo-platform-and-headless.md](./coveo-platform-and-headless.md) | **Coveo-specific:** platform pieces in use (source, fields, three ML models, query pipeline), the seven Headless controllers, APIs called, and what the toolset provides versus custom code. |
 | [coveo-admin-playbook.md](./coveo-admin-playbook.md) | **Operational how-to:** step-by-step Admin Console procedures — adding a new facet (Field → Web Scraping → Mapping → Rebuild → app), the worked **BST example** with all 7 selectors, Featured Result pinning, and the ML model lifecycle (Create model → Associate → App opt-in → Verify/warm-up via `tools/seed-ml/`). |
-| [next-steps.md](./next-steps.md) | **Scope log + forward roadmap:** Ability + BST facets and the `/pokemon/[slug]` detail route (all Shipped); 10 Coveo platform optimization opportunities (Featured Results / Thesaurus / QS / RGA / ART / ranking expressions / Passage Retrieval / DNE) with Shipped / Planned / Deferred status flags. |
+| [next-steps.md](./next-steps.md) | **Roadmap:** shipped capabilities, Coveo platform optimizations (Featured Results, Thesaurus, QS, RGA, ART, ranking expressions, Passage Retrieval, DNE), and status flags. |
 | [security-review.md](./security-review.md) | **Security pass:** CSP (nonce middleware + tight `img-src` / `connect-src`), `next/image` allowlists, HTTP headers, `NEXT_PUBLIC_*` semantics, and follow-ups (search tokens, new image hosts, Next middleware deprecation). |
 | [owasp-deployment-review.md](./owasp-deployment-review.md) | **OWASP Top 10:2021** mapping for the live deployment: access control, crypto/TLS, injection, misconfiguration, components (`npm audit`), SSRF, logging gaps, and a short release checklist. |
 
@@ -24,7 +24,7 @@ Technical documentation for the Pokémon / Coveo challenge solution. It is writt
 | `docs/` | This documentation set. |
 | `web/` | Next.js application (search UI, `@coveo/headless`) — the deliverable. |
 | `tools/seed-ml/` | **Optional** Playwright package — bundles two scripts: `seed-ml.ts` (Coveo ML warm-up: `npm run seed`) and `smoke.ts` (end-to-end smoke test of the live app: `npm run smoke`). Separate `npm install`; not required to build or run `web/`. |
-| `.cursor/rules/` | Cursor IDE rules: `coveo-platform.mdc` (challenge context, `alwaysApply: true`), `coveo-indexing.mdc` (crawler/scraping config + 11-field schema), `coveo-headless-react.mdc` (Headless patterns + actual code samples from this repo). |
+| `.cursor/rules/` | Cursor IDE rules: `coveo-platform.mdc` (Coveo + app context, `alwaysApply: true`), `coveo-indexing.mdc` (crawler/scraping config + field schema), `coveo-headless-react.mdc` (Headless patterns + code samples from this repo). |
 | `web/AGENTS.md` | Warning for AI agents: this is Next.js **16.2.x** with breaking changes vs older training data; check `node_modules/next/dist/docs/` before writing route handlers. |
 
 Content indexing (Web source, fields, web scraping, ML models) is configured in the **Coveo Administration Console**, not in this repo.

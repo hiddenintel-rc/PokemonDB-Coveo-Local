@@ -1,93 +1,26 @@
-# Pokemon Search Challenge — Coveo + React
+# Pokémon Search — Coveo Headless + Next.js
 
-A Coveo-powered search page built with `@coveo/headless`, **Next.js** (App Router), and TypeScript. The deliverable UI lives in **`web/`** as its own npm package (`"name": "web"`), separate from the repo root.
+A Coveo-powered search experience over **pokemondb.net** species pages, built with **`@coveo/headless`**, **Next.js** (App Router), and TypeScript. The application package lives under **`web/`** (`"name": "web"`), separate from the repo root.
 
-**Architecture and Coveo integration docs:** see the [`docs/`](./docs/README.md) folder (solution-architect oriented).
+**Documentation:** [`docs/README.md`](./docs/README.md) — architecture, design decisions, Coveo admin playbook, platform notes, and security reviews.
 
-**Current stack (from `web/package.json`):** Next.js **16.2.x**, React **19.2.x**, Tailwind CSS **4.x**, `@coveo/headless` **^3.50.1**.
+**Current stack** (from `web/package.json`): Next.js **16.2.x**, React **19.2.x**, Tailwind CSS **4.x**, `@coveo/headless` **^3.50.1**.
 
 ---
 
-## Official challenge checklist (Pre-Sales 2026 brief)
+## Overview
 
-This section tracks the **Pokémon Challenge (Pre-Sales, 2026)** document line-by-line: **Goals**, **Essential**, **Intermediate**, **Advanced**, **Bonus**.
+The browser talks to **Coveo Cloud** using an Anonymous Search API key in development (or the same **`NEXT_PUBLIC_*`** variables in production). Headless controllers power the search box (with query suggestions), string and numeric facets, the result list, optional **Relevance Generative Answering**, and per-result **`documentClick`** events for **Automatic Relevance Tuning**. The **`/pokemon/[slug]`** route loads one species document via **`fetch-pokemon-by-slug.ts`** so detail views do not reset the home search session or emit extra search analytics.
 
-**Legend**
+---
 
-| Tag | Meaning |
-|-----|---------|
-| **[App]** | Implemented in this repository (`web/` Next.js + Headless). Update these boxes when the code changes. |
-| **[Org]** | Your Coveo Cloud org (Admin Console: sources, fields, crawl/scrape, API keys). Not stored in git—tick when **your** environment satisfies the item. |
-| **[Ship]** | Submission deliverables (GitHub, hosting, slides, interviews). |
+## Features
 
-### Goals
-
-> *"The main goal will be to index pokemondb.net and customize your search page to include certain features."*
-
-- [x] **[Org]** Index **pokemondb.net** with your Coveo org — Web source `PokemonDB Crawl` in `roelc_Pokemon`.
-- [x] **[App]** Customize the **local search page** (facets, images, BST chip, detail route, Headless wiring — see `web/src/`).
-
-### Essential
-
-> *"ESSENTIAL" section of the challenge brief.*
-
-- [x] **[Org]** Accept the Coveo Cloud Organization invitation.
-- [x] **[App]** **Install Headless locally** — `@coveo/headless ^3.50.1` in `web/` (this repo uses **Headless**, not Atomic).
-- [x] **[Org]** **Index (crawl) pokemondb.net** via cloud Web source.
-  - [x] **[Org]** **Include only actual Pokémon pages** — inclusion regex `^https://pokemondb\.net/pokedex/[a-z0-9-]+$` plus exclusion rules for `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`. See [`.cursor/rules/coveo-indexing.mdc`](./.cursor/rules/coveo-indexing.mdc).
-- [x] **[Org]** **Web scraping configuration** — 11 metadata extractors (4 String + 7 Integer 32). Selectors verified against Golbat (BST sum identity holds: `75+80+70+65+75+90 = 455`) and against multi-form species Charizard (534, not 634) and Mewtwo (680, not 780). Full selector set in [`coveo-admin-playbook.md`](./docs/coveo-admin-playbook.md).
-- [x] **[Org]** **Custom fields** — all 11 created and facet-/sort-configured in Admin. See [`.cursor/rules/coveo-indexing.mdc`](./.cursor/rules/coveo-indexing.mdc) for the schema table.
-- [x] **[App]** **Connect search page to cloud endpoint** — `NEXT_PUBLIC_COVEO_*` env vars + Headless engine (`web/src/coveo/search-instance.ts`).
-- [x] **[App]** **Type facet** (`pokemontype`, 25 values, multi-value).
-- [x] **[App]** **Generation facet** (`pokemongeneration`, 15 values).
-- [x] **[App]** **Display Pokémon picture in each search result** — image fallback chain `pictureuri` → `picture_uri` → `syspictureuri` in `result.raw`.
-
-**Application details**
-
-- Next.js (App Router) + TypeScript under `web/`.
-- Search box with Query Suggestions combobox, result list, initial `executeFirstSearch()`, **`coveoConfigured()`** guard so `next build` works without Coveo secrets.
-- Four facets: type, generation, ability, BST (numeric with 5 labeled tiers).
-- RGA-generated answer panel with citations + 👍/👎 feedback above the result list.
-- Each card is a Next.js `<Link>` to `/pokemon/[slug]` and emits a `documentClick` analytics event via `buildInteractiveResult` (ART training signal).
-- **Detail page** (`PokemonDetailView`): same **catalog** background and centered sheet as search; Coveo-backed slug fetch; stacked **Stats** card — see `docs/application-components.md` and **DD-16** in `docs/design-decisions.md`.
-
-### Intermediate
-
-> *"INTERMEDIATE" section of the challenge brief.*
-
-- [x] **[Ship]** **Host your code on GitHub** — push `main` to your remote; reviewers clone or browse the repo.
-- [x] **[Ship]** **Host your search app** — production build is wired through **Vercel** connected to that repo (see [Deployment (GitHub → Vercel)](#deployment-github--vercel) below). Replace the example URL with yours when sharing externally.
-
-### Advanced
-
-> *"ADVANCED" section of the challenge brief.*
-
-- [x] **[Org]** **Deploy Coveo RGA** — `pokemon_RGA` model created and associated to the default pipeline (status: Active).
-- [x] **[App]** **Consume RGA in the app** — `buildGeneratedAnswer` controller + `GeneratedAnswerPanel` component with streaming answer, citations, like/dislike feedback.
-- [x] **[Org]** **Preload a Query Suggest model** — `pokemon_QS` model created and associated to the default pipeline.
-- [x] **[App]** **Consume QS in the app** — `numberOfSuggestions: 8` on `buildSearchBox` + WAI-ARIA combobox `SearchBoxWithSuggestions` (ArrowDown/Up navigation, Enter to apply, Escape to close).
-- [x] **[App]** **Pokémon Detail Page** — `/pokemon/[slug]` route under `web/src/app/pokemon/[slug]/page.tsx`; client-side fetch via `fetch-pokemon-by-slug.ts` with `analytics: { enabled: false }` so detail loads don't pollute search analytics.
-- [ ] **[Ship]** **Prepare a presentation** covering both topics from the brief:
-  - Technical deep dive (what you built, Coveo configuration; format is your choice: demo, slides, docs, mix).
-  - **Enterprise angle:** a past/present customer who could benefit from a similar Coveo solution + value proposition.
-
-### Bonus
-
-> *"BONUS" — Passage Retrieval API.*
-
-- [ ] **[App] / [Ship]** Build something on the **Coveo Passage Retrieval API**, **or** document a **point of view** on future use cases.
-
-### Brief documentation pointers (not scored)
-
-> *Documentation & tips from the challenge PDF.*
-
-- General docs: [docs.coveo.com](https://docs.coveo.com).
-
-### Extras beyond the brief (Coveo platform optimizations)
-
-- [x] **[Org]** **Featured Results** — Pikachu pin on `pokemon`, starter pins on `starter` (default pipeline → Result ranking).
-- [x] **[Org]** **Automatic Relevance Tuning (ART)** — `pokemon_ART` model associated; training on `documentClick` events emitted by `buildInteractiveResult`.
-- [x] **[Tooling]** **Optional Playwright ML seeder** — `tools/seed-ml/` runner that drives the live app to emit representative `search` / `searchQuerySuggest` / `facetSelect` / `genqa.citationClick` events. Separate npm package; not installed by `web/`.
+- **Search & facets** — type, generation, ability, and base stat total (five labeled BST tiers).
+- **Result cards** — artwork from `pictureuri` / fallbacks, national Pokédex number when indexed, BST, type pills; cards link to **`/pokemon/{slug}`** and emit **`documentClick`** for ART.
+- **Generative answering** — RGA panel with citations and feedback when the pipeline returns an answer.
+- **Detail page** — types, generation, abilities, base stats, external link to pokemondb; same catalog layout as search.
+- **Coveo org configuration** — Web source, scraping rules, fields, featured results, and ML models (QS, RGA, ART) are described in **`docs/`** and **`.cursor/rules/coveo-indexing.mdc`**. Optional **Playwright** helpers live in **`tools/seed-ml/`** for ML warm-up and smoke tests.
 
 ---
 
@@ -95,7 +28,7 @@ This section tracks the **Pokémon Challenge (Pre-Sales, 2026)** document line-b
 
 ### Prerequisites
 - Node.js 20.9.0+
-- A Coveo Cloud Organization (invitation accepted)
+- Access to a Coveo organization with a Web source and API credentials for search (see **`docs/coveo-admin-playbook.md`**).
 
 ### Environment Variables
 
@@ -166,7 +99,7 @@ Add the same **`NEXT_PUBLIC_*`** variables as in local `web/.env.local` (at mini
 
 ### Example production URL
 
-- Example deployment: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) — update this README or your submission links if your team uses a different project name or custom domain.
+- Example deployment: [https://pokemon-db-coveo-local.vercel.app/](https://pokemon-db-coveo-local.vercel.app/) — replace with your production URL when sharing the app.
 
 For architecture context (Coveo vs app hosting), see [`docs/architecture.md`](./docs/architecture.md) §5.
 
@@ -176,9 +109,9 @@ The `web/` app ships with **nonce-based Content-Security-Policy** (`src/middlewa
 
 ---
 
-## Key References
+## Repository presentation (GitHub)
 
-| Resource | URL |
+If the repository is **public**, set the GitHub **Description** and **Topics** to neutral, technical wording (stack + domain). The **Description** is edited on GitHub under **Repository → ⚙ Settings** (not in git).
 |---|---|
 | Coveo Admin Console | https://platform.cloud.coveo.com/admin/ |
 | Coveo Docs | https://docs.coveo.com |
@@ -212,5 +145,5 @@ For the full architecture diagram and runtime boundaries, see [`docs/architectur
 | Generation | Intro paragraph `<abbr>` | `pokemongeneration` (String) | Generation facet + card |
 | Ability | `a[href^="/ability/"]` links in Pokédex data table | `pokemonability` (String, multi-value; semicolon-joined when index stores as single string) | Ability facet + card "Abilities: …" line |
 | Image / sprite | `<meta property="og:image">` | `pictureuri` (fallbacks: `picture_uri`, `syspictureuri`) | Card thumbnail + detail-page hero image |
-| BST (Total) | `#dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type` | `pokemonbst` (Integer 32) | **"Base stat total" facet** (5 labeled tiers) + emerald BST chip on each search-result card + **detail page** stats section total row (with tier label) |
+| BST (Total) | `#dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type` | `pokemonbst` (Integer 32) | **"Base stat total" facet** (five labeled tiers) + sky BST line on each search-result card + **detail page** stats total row (with tier label) |
 | HP, Attack, Defense, Sp. Atk, Sp. Def, Speed | `#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(N) td.cell-num:first-of-type` | `pokemonhp`, `pokemonattack`, `pokemondefense`, `pokemonspatk`, `pokemonspdef`, `pokemonspeed` (Integer 32) | **Detail page** base-stats bar chart (value + proportional bar, scaled to 255) — not faceted or sorted in search results |
