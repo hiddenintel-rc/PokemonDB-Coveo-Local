@@ -142,7 +142,7 @@ function ProductFacetOptionRow({
 }) {
   return (
     <li className="product-filter__option" data-filter-option={optionValue}>
-      <label className="product-filter__control flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-xs text-zinc-700 hover:bg-zinc-100">
+      <label className="product-filter__control flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-zinc-700 hover:bg-zinc-100">
         <input
           type="checkbox"
           checked={selected}
@@ -220,9 +220,9 @@ function PokemonCard({ result }: { result: Result }) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 py-2 text-left">
+      <div className="flex flex-1 flex-col gap-2 px-3 py-3 text-left">
         {(dexLabel != null || bst != null) && (
-        <p className="text-[11px] font-medium tabular-nums text-zinc-500">
+        <p className="text-[11px] font-medium tabular-nums leading-snug text-zinc-500">
           {dexLabel != null && <span className="text-zinc-600">{dexLabel}</span>}
           {dexLabel != null && bst != null && (
             <span className="mx-1.5 text-zinc-300" aria-hidden>
@@ -236,7 +236,7 @@ function PokemonCard({ result }: { result: Result }) {
           )}
         </p>
         )}
-        <h2 className="line-clamp-1 text-lg font-semibold leading-tight text-zinc-950 group-hover:text-sky-700">
+        <h2 className="line-clamp-1 text-lg font-semibold leading-snug text-zinc-950 group-hover:text-sky-700">
           {name}
         </h2>
         <PokemonTypePillRow types={types} className="justify-start gap-1" />
@@ -744,7 +744,7 @@ function SearchInterfaceConfigured() {
             ? "Loading…"
             : `${resultState.results.length} result${resultState.results.length === 1 ? "" : "s"}`}
       </p>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 lg:grid-cols-4">
         {resultState.results.map((result) => (
           <PokemonCard key={result.uniqueId} result={result} />
         ))}
