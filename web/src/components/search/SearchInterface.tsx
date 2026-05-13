@@ -792,6 +792,15 @@ function SearchInterfaceConfigured() {
         </header>
 
         {resultArea}
+
+        {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ? (
+          <p className="mt-4 text-center text-[10px] tabular-nums text-zinc-400">
+            Git build{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-zinc-600">
+              {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.slice(0, 7)}
+            </code>
+          </p>
+        ) : null}
       </div>
     </AppShell>
   );

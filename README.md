@@ -135,7 +135,18 @@ The live search app is delivered by **pushing this repository to GitHub**, then 
 
 1. **Develop and commit** in `web/` (and the rest of the repo as needed).
 2. **Push to GitHub** — e.g. `git push origin main`.
-3. **Vercel** — the project is **imported from the same GitHub repo**. Each push (or manual redeploy) runs a production install + `next build` for the app.
+3. **Vercel** — the project is **imported from the same GitHub repo**. Each push to **`main`** should create a **new** deployment row for the **new commit**. (See *If production still shows an old commit* below.)
+
+### If production still shows an old commit
+
+Vercel’s **Redeploy** on an **existing** deployment row rebuilds **that row’s Git commit** — it does **not** automatically jump to the latest `main`. If the dashboard still shows e.g. `b4dc1ef` after you pushed `af35c76`, you likely redeployed an old deployment.
+
+1. Open **Deployments** and select the **top** row (newest by time). Its commit message and SHA should match [the latest commit on `main`](https://github.com/hiddenintel-rc/PokemonDB-Coveo-Local/commits/main) for this repo.
+2. Under **Project → Settings → Git**, confirm the **Connected Repository** is **`hiddenintel-rc/PokemonDB-Coveo-Local`** (or whichever repo you actually `git push` to) and the **Production Branch** is **`main`**.
+3. If new pushes never appear as new deployments, disconnect/reconnect Git or check GitHub **Settings → Webhooks** for the repo (Vercel should receive `push` events).
+4. To force a build from **current** `main` without hunting the UI: push **any** new commit to `main` (even a no-op docs tweak); that creates a fresh deployment from HEAD.
+
+After a correct deploy, the search page shows a small **Git build `xxxxxxx`** line at the bottom (first seven characters of `VERCEL_GIT_COMMIT_SHA`); it should match the short SHA on GitHub for that deployment.
 
 ### Vercel project settings (required for this monorepo)
 
