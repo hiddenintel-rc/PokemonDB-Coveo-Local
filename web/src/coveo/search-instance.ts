@@ -110,6 +110,7 @@ export function getSearchControllers(): SearchControllers {
             "pokemongeneration",
             "pokemonability",
             "pokemonbst",
+            "pokemonnationalnumber",
             "picture_uri",
             "pokemon_generation",
           ],

@@ -88,6 +88,7 @@ Attach to the source to extract custom metadata. Rules below are aligned with **
 | **Type(s)** | First **Pokédex data** `table.vitals-table`: row **National №**, row **Type** with `a.type-icon` (e.g. Bug). | Do **not** use a global `td a.type-icon` rule — the **type defenses** grids also use `type-icon` and would poison facets. Scope to the **first** Pokédex vitals table + **Type** row. |
 | **Generation** | There is **no** “Generation” row in that vitals table on Cascoon. Intro line: `… introduced in <abbr …>Generation 3</abbr>.` | A selector that only looks for `th` **Generation** in vitals will be **empty** on many Pokémon. Prefer the **intro** `<abbr>` after `<h1>` (see JSON). |
 | **Picture** | `<meta property="og:image" content="https://img.pokemondb.net/artwork/large/cascoon.jpg">` and/or `a[rel="lightbox"][href*="artwork"]` around main artwork. | Old `infocard-lg` markup is **not** used on this layout — use **og:image** (if your crawler indexes `<head>`) or the **lightbox** artwork link. |
+| **National №** | Same first **Pokédex data** `table.vitals-table` as Type: **first body row** is `<th>National №</th>` + `<td>` (often `<td><strong>1016</strong></td>`). | Map to **`pokemonnationalnumber`**. Row 1 = National, row 2 = Type (matches `pokemontype`’s `tr:nth-child(2)`). |
 
 ### Recommended scraping selectors (verified production set, May 2026)
 
@@ -101,6 +102,7 @@ pokemontype       main table.vitals-table:first-of-type tr:nth-child(2) td a.typ
 pokemongeneration main > h1 ~ p:first-of-type abbr::text
 pokemonability    main table.vitals-table:first-of-type td a[href^="/ability/"]::text
 pictureuri        meta[property="og:image"]::attr(content)
+pokemonnationalnumber main table.vitals-table:first-of-type tr:nth-child(1) td strong::text
 
 # Base stats (Integer 32; #dex-stats anchor + tbody/tfoot positions)
 pokemonhp       #dex-stats ~ div.resp-scroll tbody tr:nth-of-type(1) td.cell-num:first-of-type::text
@@ -115,6 +117,7 @@ pokemonbst      #dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type::te
 **Selector design notes:**
 
 - **`main table.vitals-table:first-of-type`** anchors to the **Pokédex data** table (the topmost vitals table), avoiding the Training / Breeding / Base Stats tables that share the class. Used for type / ability extraction.
+- **National №** — `tr:nth-child(1)` is the first data row (National); value is in `td` (wraps `<strong>` on current pokemondb). If extraction is **empty** on tabbed species pages (forms in `.sv-tabs-panel`), try scoping the same row to the **active** panel: `main .sv-tabs-panel.active table.vitals-table:first-of-type tr:nth-child(1) td strong::text` (or `… td::text` if `<strong>` is absent).
 - **`#dex-stats ~ div.resp-scroll`** anchors to the **Base Stats** wrapper specifically. `#dex-stats` is an empty anchor div whose ID is unique per HTML spec; `~ div.resp-scroll` finds the wrapper that holds the stats table (skipping the intervening `<h2>` heading).
 - **`tbody tr:nth-of-type(N)`** for the six stats; **`tfoot`** for the Total row (Total lives in `<tfoot>`, separate from `<tbody>`).
 - **`td.cell-num:first-of-type`** — the first numeric cell in a row is the actual stat. The two trailing `td.cell-num` cells are level-100 min/max projections, not the base stat.
@@ -132,6 +135,7 @@ pokemonbst      #dex-stats ~ div.resp-scroll tfoot td.cell-num:first-of-type::te
         { "field": "pokemongeneration", "selector": "main > h1 ~ p:first-of-type abbr",                                            "attribute": "text"    },
         { "field": "pokemonability",    "selector": "main table.vitals-table:first-of-type td a[href^=\"/ability/\"]",            "attribute": "text"    },
         { "field": "pictureuri",        "selector": "meta[property=\"og:image\"]",                                                "attribute": "content" },
+        { "field": "pokemonnationalnumber", "selector": "main table.vitals-table:first-of-type tr:nth-child(1) td strong",           "attribute": "text"    },
         { "field": "pokemonhp",         "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(1) td.cell-num:first-of-type", "attribute": "text" },
         { "field": "pokemonattack",     "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(2) td.cell-num:first-of-type", "attribute": "text" },
         { "field": "pokemondefense",    "selector": "#dex-stats ~ div.resp-scroll tbody tr:nth-of-type(3) td.cell-num:first-of-type", "attribute": "text" },
@@ -169,6 +173,7 @@ Create the following fields if they don't already exist:
 | `pokemongeneration` | String | No | **Yes** | No | No | e.g. `Generation 1` |
 | `pokemonability` | String | **Yes** | **Yes** | No | No | e.g. `Inner Focus`, `Infiltrator` (semicolon-joined) |
 | `pictureuri` | String | No | No | No | No | Full image URL |
+| `pokemonnationalnumber` | String **or** Integer 32 | No | No | No | n/a | National Pokédex № (e.g. `150` or `0150`) — map from your Coveo scraper; see `web/src/lib/nationalDex.ts` |
 | `pokemonbst` | **Integer 32** | No | **auto** | **auto** | n/a | Base Stat Total (Coveo auto-locks Facet+Sortable on Integer 32) |
 | `pokemonhp` | Integer 32 | No | auto | auto | n/a | HP — unused by UI today; available for sort/ranking |
 | `pokemonattack` | Integer 32 | No | auto | auto | n/a | Attack |

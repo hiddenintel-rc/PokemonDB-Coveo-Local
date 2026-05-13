@@ -1,28 +1,204 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────
+   Design tokens — light mode
+   ───────────────────────────────────────────── */
 :root {
+  /* Canvas */
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Surfaces (layered elevation) */
+  --surface-base:    #ffffff;
+  --surface-raised:  #fafafa;
+  --surface-overlay: #f4f4f5;   /* zinc-100 */
+  --surface-sunken:  #e4e4e7;   /* zinc-200 */
+
+  /* Borders */
+  --border-subtle:   #f4f4f5;   /* zinc-100 */
+  --border-default:  #e4e4e7;   /* zinc-200 */
+  --border-strong:   #d4d4d8;   /* zinc-300 */
+
+  /* Text hierarchy */
+  --text-primary:    #18181b;   /* zinc-900 */
+  --text-secondary:  #52525b;   /* zinc-600 */
+  --text-muted:      #71717a;   /* zinc-500 */
+  --text-faint:      #a1a1aa;   /* zinc-400 */
+
+  /* Brand — emerald */
+  --color-brand:         #059669;  /* emerald-600 */
+  --color-brand-hover:   #047857;  /* emerald-700 */
+  --color-brand-subtle:  #ecfdf5;  /* emerald-50  */
+  --color-brand-text:    #065f46;  /* emerald-900 */
+
+  /* Semantic — accent (sky, used for stat bars) */
+  --color-accent:        #0284c7;  /* sky-600 */
+
+  /* Semantic — destructive / warning */
+  --color-danger:        #e11d48;  /* rose-600 */
+  --color-warning:       #d97706;  /* amber-600 */
+
+  /* Radius scale */
+  --radius-sm:  0.375rem;  /* rounded-md */
+  --radius-md:  0.75rem;   /* rounded-xl */
+  --radius-lg:  1rem;      /* rounded-2xl */
+
+  /* Shadow scale */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+
+  /* Side panel */
+  --side-panel-width: 18rem;  /* 288px */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* ─────────────────────────────────────────────
+   Design tokens — dark mode
+   ───────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --surface-base:    #09090b;   /* zinc-950 */
+    --surface-raised:  #18181b;   /* zinc-900 */
+    --surface-overlay: #27272a;   /* zinc-800 */
+    --surface-sunken:  #3f3f46;   /* zinc-700 */
+
+    --border-subtle:   #27272a;   /* zinc-800 */
+    --border-default:  #3f3f46;   /* zinc-700 */
+    --border-strong:   #52525b;   /* zinc-600 */
+
+    --text-primary:    #fafafa;   /* zinc-50  */
+    --text-secondary:  #a1a1aa;   /* zinc-400 */
+    --text-muted:      #71717a;   /* zinc-500 */
+    --text-faint:      #52525b;   /* zinc-600 */
+
+    --color-brand:        #10b981;  /* emerald-500 */
+    --color-brand-hover:  #059669;  /* emerald-600 */
+    --color-brand-subtle: #052e16;  /* emerald-950 */
+    --color-brand-text:   #6ee7b7;  /* emerald-300 */
+
+    --color-accent:   #38bdf8;    /* sky-400 */
+    --color-danger:   #fb7185;    /* rose-400 */
+    --color-warning:  #fbbf24;    /* amber-400 */
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   }
 }
 
+/* ─────────────────────────────────────────────
+   Tailwind theme bridge — exposes tokens as
+   bg-surface-base, text-text-primary, etc.
+   ───────────────────────────────────────────── */
+@theme inline {
+  --color-background:     var(--background);
+  --color-foreground:     var(--foreground);
+
+  --color-surface-base:    var(--surface-base);
+  --color-surface-raised:  var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-sunken:  var(--surface-sunken);
+
+  --color-border-subtle:   var(--border-subtle);
+  --color-border-default:  var(--border-default);
+  --color-border-strong:   var(--border-strong);
+
+  --color-text-primary:    var(--text-primary);
+  --color-text-secondary:  var(--text-secondary);
+  --color-text-muted:      var(--text-muted);
+  --color-text-faint:      var(--text-faint);
+
+  --color-brand:           var(--color-brand);
+  --color-brand-hover:     var(--color-brand-hover);
+  --color-brand-subtle:    var(--color-brand-subtle);
+  --color-brand-text:      var(--color-brand-text);
+  --color-accent:          var(--color-accent);
+  --color-danger:          var(--color-danger);
+  --color-warning:         var(--color-warning);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ─────────────────────────────────────────────
+   Base styles
+   ───────────────────────────────────────────── */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans, Arial, Helvetica, sans-serif);
+}
+
+/* ─────────────────────────────────────────────
+   Utilities
+   ───────────────────────────────────────────── */
+@layer utilities {
+  /* Diagonal stripe background — catalog / search pages */
+  .bg-catalog-stripes {
+    background-color: #fafafa;
+    background-image: repeating-linear-gradient(
+      -12deg,
+      transparent,
+      transparent 11px,
+      rgba(228, 228, 231, 0.55) 11px,
+      rgba(228, 228, 231, 0.55) 12px
+    );
+  }
+
+  /* Light Pokédex catalog canvas with striped rails, inspired by pokemondb. */
+  .bg-pokedex-catalog {
+    background-color: #ffffff;
+    background-image:
+      repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 13px,
+        rgba(228, 228, 231, 0.48) 13px,
+        rgba(228, 228, 231, 0.48) 18px
+      ),
+      linear-gradient(#ffffff, #ffffff);
+    background-repeat: repeat, no-repeat;
+    background-size: auto, min(86vw, 680px) 100%;
+    background-position: center, center;
+  }
+
+  /* Side panel transition helpers */
+  .side-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 0px;
+    transition: grid-template-columns 260ms ease;
+  }
+  .side-panel-grid[data-open="true"] {
+    grid-template-columns: 1fr var(--side-panel-width);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .bg-catalog-stripes {
+    background-color: #09090b;
+    background-image: repeating-linear-gradient(
+      -12deg,
+      transparent,
+      transparent 11px,
+      rgba(63, 63, 70, 0.45) 11px,
+      rgba(63, 63, 70, 0.45) 12px
+    );
+  }
+
+  /* Same canvas as search so detail route reads as one catalog (stripes + centered sheet). */
+  .bg-pokedex-catalog {
+    background-color: #09090b;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 13px,
+      rgba(63, 63, 70, 0.4) 13px,
+      rgba(63, 63, 70, 0.4) 18px
+    );
+    background-repeat: repeat;
+    background-size: auto;
+  }
 }
 
 /*
@@ -30,7 +206,7 @@ body {
  *
  * Regions:
  *   [data-region="product-filters"]     Sidebar wrapper
- * Panels (collapsed by default — native <details>):
+ * Panels (popover under trigger — floats over results; closes on outside click / Escape):
  *   [data-product-filter="pokemon-type"]
  *   [data-product-filter="pokemon-generation"]
  *   [data-product-filter="pokemon-ability"]

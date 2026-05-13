@@ -14,7 +14,7 @@ flowchart TB
 
   subgraph coveoCloud [Coveo Cloud]
     WebSource[Web source - PokemonDB Crawl]
-    Index[Unified index - 11 custom fields]
+    Index[Unified index - 12 custom fields]
     SearchAPI[Search API + RGA streaming]
     Analytics[Usage Analytics]
     Pipeline[default Query pipeline]
@@ -59,10 +59,11 @@ flowchart TB
 1. The user types a query and submits, or the app runs **`executeFirstSearch()`** on load.
 2. **Headless** updates internal state and builds a **Search API** request (query text, facet selections, pagination defaults, `searchHub`, etc.).
 3. The request hits the **default Query Pipeline**, which applies any **Featured Result** rules and routes through associated **ML models** (`pokemon_QS` for type-ahead, `pokemon_ART` for click-based re-ranking, `pokemon_RGA` for the generative answer when applicable).
-4. **Search API** returns **hits**. Standard fields always surface on **`Result`**; **custom** indexed fields (`pokemontype`, `pokemongeneration`, `pokemonability`, `pokemonbst`, `pictureuri`, …) appear in **`result.raw`** only when the **ResultList** controller sets **`fieldsToInclude`** for those names — see `web/src/coveo/search-instance.ts`.
+4. **Search API** returns **hits**. Standard fields always surface on **`Result`**; **custom** indexed fields (`pokemontype`, `pokemongeneration`, `pokemonability`, `pokemonbst`, `pokemonnationalnumber`, `pictureuri`, …) appear in **`result.raw`** only when the **ResultList** controller sets **`fieldsToInclude`** for those names — see `web/src/coveo/search-instance.ts`.
 5. **Controllers** (result list, three string facets, one numeric facet, search box, generated answer) notify subscribers; React re-renders via `useCoveoController`.
 6. **On result-card click**, the per-card `buildInteractiveResult` controller calls `select()` to emit a `documentClick` analytics event before Next.js navigates to `/pokemon/[slug]`. That event becomes ART training data for the next learning cycle.
-7. **The detail route** issues a separate `POST /rest/search/v2` via `fetch-pokemon-by-slug.ts` with `analytics: { enabled: false }` — deliberately outside the Headless engine so the detail fetch does not look like a user search.
+7. **The detail route** issues a separate `POST /rest/search/v2` via `fetch-pokemon-by-slug.ts` with `analytics: { enabled: false }` — deliberately outside the Headless engine so the detail fetch does not look like a user search. The slug query ORs **`pokemondb.net`** and **`www.pokemondb.net`** URI variants so the hit resolves regardless of indexed canonical host.
+8. **Detail UI** renders a stacked **species** card + **Stats** card (same light catalog chrome as `/`); rationale and trade-offs in **`design-decisions.md` DD-16**.
 
 ## 5. Deployment view
 
@@ -90,7 +91,7 @@ Environment variables for the browser build use the **`NEXT_PUBLIC_`** prefix so
 | Security | Server route that returns short-lived **search tokens**; remove public API key from the client. | Open — see DD-3 |
 | Relevance — featured results | Result-ranking pin rules in default pipeline. | **Shipped** — Pikachu + starter pins |
 | Relevance — ML | Three models (QS, RGA, ART) associated to default pipeline. | **Shipped** — see `coveo-platform-and-headless.md` §1 |
-| Content | Additional **fields**, **web scraping** rules, or a **Push** source for alternative indexing. | 11 fields shipped; per-stat fields (HP/Attack/…/Speed) sit unused in the index for future sort + ranking expressions |
+| Content | Additional **fields**, **web scraping** rules, or a **Push** source for alternative indexing. | 12 fields in the reference schema (including `pokemonnationalnumber` for National №); per-stat fields (HP/Attack/…/Speed) sit unused in the index for future sort + ranking expressions |
 | UI — pagination | `buildPager` controller. | Not implemented (small dex ~1300 species fits one search) |
 | UI — sort | `buildSort` controller. Sortable fields available: all 7 integer stat fields. | Not implemented |
 | UI — related Pokémon strip on detail page | Second Coveo query filtered by type/generation. | Deferred (see `next-steps.md`) |

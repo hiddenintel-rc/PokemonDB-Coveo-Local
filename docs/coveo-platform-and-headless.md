@@ -17,7 +17,7 @@ These are **not npm packages**; they are capabilities configured in **Coveo Admi
 | **Web source** (`PokemonDB Crawl`) | Cloud crawler that retrieves pokemondb.net `/pokedex/{slug}` pages per **starting URLs**, **inclusions**, and **exclusions**. |
 | **Crawling rules** | Restrict which URLs become **items** in the index — single-segment `/pokedex/{slug}` species pages only; explicit exclusions for `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`. Detail: [`.cursor/rules/coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc). |
 | **Web scraping configuration** | Eleven extraction rules (one per custom field) using jsoup-flavored CSS selectors with Coveo's `::text` / `::attr(...)` pseudo-elements. Anchored to stable DOM structures (`#dex-stats`, `main table.vitals-table:first-of-type`) — see [`coveo-admin-playbook.md`](./coveo-admin-playbook.md) §1 for the full selector set and the postmortem on `:has` / `:matchesOwn` failures. |
-| **Fields (schema)** | **All 11 custom fields are live**: `pokemontype`, `pokemongeneration`, `pokemonability`, `pictureuri` (String) and `pokemonbst`, `pokemonhp`, `pokemonattack`, `pokemondefense`, `pokemonspatk`, `pokemonspdef`, `pokemonspeed` (Integer 32). See [`coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc) for the schema table. |
+| **Fields (schema)** | **Custom fields** include: `pokemontype`, `pokemongeneration`, `pokemonability`, `pictureuri`, `pokemonnationalnumber` (String or Integer 32 — National №), and `pokemonbst`, `pokemonhp`, `pokemonattack`, `pokemondefense`, `pokemonspatk`, `pokemonspdef`, `pokemonspeed` (Integer 32). See [`coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc) for the schema table. |
 | **Unified index** | Stores compressed/queryable **items** produced by the source. |
 | **Query pipeline (`default`)** | Routes every search through: **Featured Result** rules (Pikachu pin on `pokemon`, starter pins on `starter`), then ML model evaluation. |
 | **Result-ranking rules (Featured Result)** | Pinned curated species for specific queries. Configured in the default pipeline → Result ranking. |
@@ -232,7 +232,7 @@ The Next.js app does **not** implement these protocols directly — Headless ser
 
 ## 6. Summary for stakeholders
 
-- **Coveo** is responsible for **getting data in** (crawl + 11 custom fields), **keeping it searchable**, and **executing intelligent search** (default pipeline + three associated ML models).
+- **Coveo** is responsible for **getting data in** (crawl + custom fields), **keeping it searchable**, and **executing intelligent search** (default pipeline + three associated ML models).
 - **`@coveo/headless`** orchestrates everything client-side: queries, facets, results, suggestions, generative answers, and click analytics.
 - **This repository's `web/` app** is responsible for **presentation**, **hosting**, and **developer ergonomics** (Next.js), while remaining intentionally thin on security until search tokens are introduced.
 

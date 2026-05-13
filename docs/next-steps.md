@@ -57,7 +57,7 @@ Boundaries live in **`BST_TIERS`** in `web/src/coveo/search-instance.ts` — sin
 |------|--------|
 | `search-instance.ts` — `pokemonbst` in `fieldsToInclude`; **`buildNumericFacet`** with explicit `currentValues` driven by `BST_TIERS`; `BST_TIERS` + `bstTierForRange()` helper exported | ✅ |
 | `SearchInterface.tsx` — new `Base stat total` panel (5 labeled tiers, mirrors existing facet chrome); `data-product-filter="pokemon-bst"`; empty-state hint when all counts are 0 | ✅ |
-| `PokemonCard` — **BST `<chip>`** in the card header next to the title (emerald pill, `tabular-nums`); reads `pokemonbst` from `result.raw` with string/number tolerance | ✅ |
+| `PokemonCard` — **BST** line on the card (`tabular-nums`, sky accent when next to national №); reads `pokemonbst` from `result.raw` with string/number tolerance | ✅ |
 | `globals.css` — `[data-product-filter="pokemon-bst"]` added to the styling-hooks comment | ✅ |
 
 The app degrades gracefully if `pokemonbst` is missing from the index: the five tier rows still render but with `0` counts, and an inline hint points to the Admin steps needed.

@@ -10,8 +10,9 @@
  *   - Same credentials as the engine (NEXT_PUBLIC_COVEO_*), already exposed to the
  *     client, so no auth path change.
  *
- * Returns the first hit whose `uri` matches `pokemondb.net/pokedex/{slug}`
- * (with or without a trailing slash), or `null` if there are no hits.
+ * Returns the first hit whose `uri` matches `pokemondb.net/pokedex/{slug}` or
+ * `www.pokemondb.net/pokedex/{slug}` (with or without a trailing slash), or `null`
+ * if there are no hits.
  */
 
 /** Subset of fields we render on the detail page. */
@@ -33,6 +34,7 @@ const DETAIL_FIELDS_TO_INCLUDE = [
   "pokemongeneration",
   "pokemonability",
   "pokemonbst",
+  "pokemonnationalnumber",
   "pokemonhp",
   "pokemonattack",
   "pokemondefense",
@@ -86,6 +88,8 @@ export async function fetchPokemonBySlug(
   const candidates = [
     `https://pokemondb.net/pokedex/${normalized}`,
     `https://pokemondb.net/pokedex/${normalized}/`,
+    `https://www.pokemondb.net/pokedex/${normalized}`,
+    `https://www.pokemondb.net/pokedex/${normalized}/`,
   ]
     .map((u) => `"${u}"`)
     .join(",");

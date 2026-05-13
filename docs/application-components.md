@@ -11,6 +11,12 @@ This describes the **deliverable codebase** under **`web/`**: routing, React com
 | Styling | Tailwind CSS 4.x |
 | Search SDK | `@coveo/headless` ^3.50.1 |
 
+## Pokémon facts vs presentation
+
+All **Pokémon facts** shown on `/` and `/pokemon/[slug]` come from **Coveo**: Headless search hits (`result.title`, `result.clickUri`, `result.raw`) on the home page, and **`POST /rest/search/v2`** (`fetchPokemonBySlug`) on the detail page. There is **no** local Pokédex JSON, no REST call to pokemondb for copy or stats, and no server-side scrape in this app.
+
+**Intentional non-index sources:** (1) **Image bytes** — the `src` URL is from Coveo (`pictureuri` / fallbacks); the browser loads pixels via **`next/image`** from allowlisted hosts. (2) **Presentation-only** — `cleanIndexedPokemonTitle` trims noise from the indexed **title** string; `formatNationalDex` / type pill colors format Coveo values; bar charts use a fixed **255** scale cap; **`BST_TIERS`** maps the indexed **`pokemonbst`** integer to facet ranges and tier **labels** (Frail / … / Legendary) without replacing the number. (3) **RGA** — generative answer text is produced by Coveo’s model from indexed content, not from a second fact database in the repo.
+
 ## Directory map
 
 ```
@@ -28,11 +34,18 @@ web/
 │   │   ├── search-instance.ts          # Headless engine + controller singletons
 │   │   └── fetch-pokemon-by-slug.ts    # One-off Coveo Search API fetch (no analytics)
 │   ├── components/
+│   │   ├── layout/
+│   │   │   ├── AppShell.tsx            # Centered max-width page wrapper
+│   │   │   ├── Card.tsx                # Card + CardSection primitives
+│   │   │   └── SidePanel.tsx           # Collapsible panel (detail route uses stacked Stats card instead)
 │   │   ├── search/
 │   │   │   └── SearchInterface.tsx     # Search UI, facets, results, env gate
 │   │   └── pokemon/
 │   │       ├── PokemonDetailView.tsx   # Detail page: skeleton/found/not-found/error states
-│   │       └── PokemonIndexedImage.tsx # `next/image` wrapper — HTTPS allowlist (pokemondb + Coveo CDN)
+│   │       ├── PokemonIndexedImage.tsx # `next/image` wrapper — HTTPS allowlist (pokemondb + Coveo CDN)
+│   │       └── PokemonTypePill.tsx     # Type-colored pills (search + detail)
+│   ├── lib/
+│   │   └── nationalDex.ts              # National № parsing/formatting from `result.raw` (no extra fetch)
 │   └── hooks/
 │       └── useCoveoController.ts       # Generic subscribe → React state bridge
 ├── .env / .env.local           # Local credentials (gitignored); copy from `.env.example`
@@ -44,9 +57,9 @@ web/
 
 | Module | Role |
 |--------|------|
-| **`src/app/page.tsx`** | Server-compatible entry for `/`. Wraps content in page chrome and renders **`SearchInterface`**. |
+| **`src/app/page.tsx`** | Server-compatible entry for `/`. Wraps **`SearchInterface`** in **`min-h-dvh bg-pokedex-catalog text-zinc-950`**. |
 | **`src/app/layout.tsx`** | Sets document metadata (`title`, `description`), fonts, and body layout. |
-| **`src/app/pokemon/[slug]/page.tsx`** | Dynamic route for one Pokémon. Client Component; unwraps the Promise-shaped `params` with React **`use()`** (Next.js 16 convention) and renders **`<PokemonDetailView key={slug} slug={slug} />`** so navigating between detail pages remounts the view (fresh skeleton, no in-effect setState). |
+| **`src/app/pokemon/[slug]/page.tsx`** | Dynamic route for one Pokémon. Client Component; unwraps the Promise-shaped `params` with React **`use()`** (Next.js 16 convention) and renders **`<PokemonDetailView key={slug} slug={slug} />`** so navigating between detail pages remounts the view (fresh skeleton, no in-effect setState). Wrapper uses **`min-h-dvh bg-pokedex-catalog text-zinc-950`** to match the home catalog canvas. |
 
 ## Client module: `SearchInterface.tsx`
 
@@ -56,9 +69,9 @@ Marked **`"use client"`**. Two-tier structure:
 |-----------------|--------|
 | **`SearchInterface`** | If **`coveoConfigured()`** is false (missing org ID or API key), renders **`EnvMissingBanner`** (copy **`.env.example`** to **`.env.local`** per on-screen copy; **`.env`** works too). Otherwise renders **`SearchInterfaceConfigured`**. |
 | **`SearchInterfaceConfigured`** | Obtains controllers, subscribes via hooks, runs **`executeFirstSearch()`** once on mount, renders search form, facet columns, and result list. |
-| **`PokemonCard`** | Presentational row/card for one **`Result`**, wrapped in a Next.js **`<Link href={'/pokemon/' + slug}>`** so the whole card navigates to the internal detail route. Slug derived from **`clickUri`** via **`slugFromClickUri`**. A per-result **`buildInteractiveResult`** controller emits a `documentClick` analytics event on click (`select()`) — feeds Automatic Relevance Tuning (ART). Image URL falls through **`pictureuri`** → **`picture_uri`** → **`syspictureuri`** in **`result.raw`** and is rendered with **`PokemonIndexedImage`** (`next/image`, allowlisted HTTPS hosts only). Types from **`pokemontype`** via **`facetValues`**; generation from **`pokemongeneration`** or **`pokemon_generation`**; BST integer from **`pokemonbst`** via **`bstFromRaw`**, rendered as a `tabular-nums` emerald chip in the card header next to the title. |
+| **`PokemonCard`** | Presentational row/card for one **`Result`**, wrapped in a Next.js **`<Link href={'/pokemon/' + slug}>`** so the whole card navigates to the internal detail route. Slug derived from **`clickUri`** via **`slugFromClickUri`**. A per-result **`buildInteractiveResult`** controller emits a `documentClick` analytics event on click (`select()`) — feeds Automatic Relevance Tuning (ART). Image URL falls through **`pictureuri`** → **`picture_uri`** → **`syspictureuri`** in **`result.raw`** and is rendered with **`PokemonIndexedImage`**. Types from **`pokemontype`**; national № from **`pokemonnationalnumber`** (and aliases in `nationalDexFromRaw`) when indexed; display name from **`cleanIndexedPokemonTitle(result.title)`**; BST from **`pokemonbst`** via **`bstFromRaw`**, shown as **`BST {n}`** with sky accent next to the formatted dex line when present. |
 | **`PRODUCT_FILTER_IDS`** | Stable **`data-product-filter`** ids (**`pokemon-type`**, **`pokemon-generation`**, **`pokemon-ability`**, **`pokemon-bst`**) for CSS targeting; exported next to the filter UI. |
-| **`ProductFacetFilterSection`** | One collapsible facet panel (**`<details>`**, closed by default): shared chrome + **`data-product-filter`**. |
+| **`ProductFacetFilterSection`** | One facet as a **button + floating panel** (popover): click opens that filter’s checkbox list without shifting the result grid; click-outside and Escape close. Shared chrome + **`data-product-filter`**. |
 | **`ProductFacetOptionRow`** | Uniform checkbox row: **`data-filter-option`**, BEM-style **`product-filter__*`** classes. |
 
 Facet sidebar wrapper: **`data-region="product-filters"`** (`aria-label="Product filters"`). Styling hook reference comment lives in **`globals.css`**.
@@ -79,9 +92,10 @@ Marked **`"use client"`**. Four render states driven by a `ViewState` discrimina
 
 | Symbol | Purpose |
 |--------|---------|
+| **`PokedexDetailChrome`** | Wraps loading / found / not-found / error states: **`AppShell`** with **`max-w-[42rem] lg:max-w-6xl bg-white/95`** (aligned with search), **Back to search** (sky), **Coveo Pokédex** eyebrow, optional **# + BST** meta line, and **`h1`** title. |
 | **`PokemonDetailView`** | Exported. Dispatches to skeleton / found / not-found / error sub-renders. `key={slug}` on the parent call-site remounts on slug navigation (fresh `loading` state, no cascading `setState`). |
-| **`PokemonDetail`** | Renders the full detail card: hero image via **`PokemonIndexedImage`**, title, **Types** / **Generation** / **Abilities** badge lists, **`BaseStatsSection`**, and a footer link back to pokemondb.net. |
-| **`BaseStatsSection`** | Renders the six individual base stats (HP / Attack / Defense / Sp. Atk / Sp. Def / Speed) as labeled **SVG** bar rows (no inline `style` — CSP-friendly), scaled to 255 (Blissey's HP ceiling), plus a **Total** row showing the raw BST integer and its tier label (e.g. `Legendary`). Imports **`BST_TIERS`** from `search-instance.ts` for tier resolution. Renders `null` if no stat data is in `raw`. |
+| **`PokemonDetail`** | **`PokedexDetailChrome`**, then a **stacked** layout: primary **white** **`Card`** (sprite, types, generation, abilities, footer) and a secondary **Stats** **`Card`** (`bg-zinc-50`, `region="pokemon-stats"`) with **`BaseStatsPanel`** — mirrors pokemondb’s separate stats block instead of a narrow side column. |
+| **`BaseStatsPanel`** | Reads **`pokemonhp`** … **`pokemonspeed`** and **`pokemonbst`** from the Coveo hit’s **`raw`**. Renders six **SVG** bar rows (CSP-friendly), scaled to **255** as a visualization cap, plus **Total** with BST and optional tier label from **`BST_TIERS`**. Renders `null` if no stat data is in `raw`. |
 | **`PokemonDetailSkeleton`** | Animated pulse placeholder shown while the fetch is in-flight. |
 | **`PokemonNotFound`** | Displayed when Coveo returns no hits for the slug. |
 | **`PokemonDetailError`** | Displayed on fetch errors (network, bad status, credential issues). |
@@ -101,7 +115,7 @@ Marked **`"use client"`**. Four render states driven by a `ViewState` discrimina
 |--------|------------------|
 | **`slugFromClickUri(clickUri)`** | Pulls the last non-empty path segment from a result's **`clickUri`** (e.g. `https://pokemondb.net/pokedex/charizard` → `charizard`), lowercased. Returns `null` for unparseable URLs. |
 | **`normalizeSlug(slug)`** | Validates a user-provided URL slug against `^[a-z0-9-]+$` (after `decodeURIComponent` + trim + lowercase). Returns `null` on rejection — used as the "is this a sane slug?" guard before hitting Coveo. |
-| **`fetchPokemonBySlug(slug, signal?)`** | Issues a direct **`POST /rest/search/v2`** with **`aq=@uri==(<canonical>,<canonical-with-slash>)`** + **`numberOfResults: 1`** + **`fieldsToInclude`** covering all custom fields rendered on the detail page: `pictureuri`, `syspictureuri`, `pokemontype`, `pokemongeneration`, `pokemonability`, **`pokemonbst`**, **`pokemonhp`**, **`pokemonattack`**, **`pokemondefense`**, **`pokemonspatk`**, **`pokemonspdef`**, **`pokemonspeed`**, plus underscore-named fallbacks — and **`analytics: { enabled: false }`** so the detail-page fetch does not look like a user search. Returns the first hit or `null`. |
+| **`fetchPokemonBySlug(slug, signal?)`** | Issues a direct **`POST /rest/search/v2`** with **`aq=@uri==(...)`** over **`https://pokemondb.net/...`** and **`https://www.pokemondb.net/...`** (with and without trailing slash) + **`numberOfResults: 1`** + **`fieldsToInclude`** covering every field the detail UI reads: `pictureuri`, `syspictureuri`, `pokemontype`, `pokemongeneration`, `pokemonability`, **`pokemonnationalnumber`**, **`pokemonbst`**, the six per-stat keys, plus **`picture_uri`** / **`pokemon_generation`** fallbacks — and **`analytics: { enabled: false }`**. Returns the first hit or `null`. |
 
 Used only by the detail route — the home/search UI continues to go through the Headless engine singletons.
 
@@ -109,7 +123,7 @@ Used only by the detail route — the home/search UI continues to go through the
 
 Headless only adds **extra** indexed fields to each hit when they are listed here; otherwise **`result.raw`** contains **default** fields only. That differs from **Content Browser**, which lists every stored field on an item—custom fields such as **`pictureuri`** can be populated in the index but **absent from search hits** until included.
 
-Configured names (search results): **`pictureuri`**, **`syspictureuri`**, **`pokemontype`**, **`pokemongeneration`**, **`pokemonability`**, **`pokemonbst`**, **`picture_uri`**, **`pokemon_generation`** (the last two cover alternate Coveo field naming). The six per-stat fields are not included here because only the BST total chip is shown on result cards.
+Configured names (search results): **`pictureuri`**, **`syspictureuri`**, **`pokemontype`**, **`pokemongeneration`**, **`pokemonability`**, **`pokemonbst`**, **`pokemonnationalnumber`**, **`picture_uri`**, **`pokemon_generation`**. The six per-stat fields (`pokemonhp`, …) are **not** listed here because cards only show BST + types + image + national №; the detail fetch requests those stat fields separately via **`DETAIL_FIELDS_TO_INCLUDE`**.
 
 ## Hook: `useCoveoController.ts`
 
@@ -127,7 +141,7 @@ Generic helper for any Headless controller exposing **`state`** and **`subscribe
 | AI answer panel above results | **GeneratedAnswer** (RGA) | Renders streaming `answer`, numbered `citations[]`, like/dislike feedback. Silent when no model/answer. Component: **`GeneratedAnswerPanel`**. |
 | Results area | **ResultList** (`fieldsToInclude` set in **`search-instance.ts`**) | Reads **`results`**, **`isLoading`**; each **`Result.raw`** includes the listed custom fields |
 | Whole-card click → detail route | **InteractiveResult** (`buildInteractiveResult` per card) | **`select()`** emits `documentClick` analytics on navigation — the training signal Automatic Relevance Tuning (ART) needs |
-| Detail page — base stats section | _(no Headless controller — direct API fetch)_ | `BaseStatsSection` reads `pokemonhp`…`pokemonspeed` + `pokemonbst` from `result.raw`; bars scaled to 255; tier label from `BST_TIERS` |
+| Detail page — stats block | _(no Headless — same Coveo hit as main card)_ | **`BaseStatsPanel`** inside a light **Stats** card below the species card; horizontal bars use explicit **`fill-sky-*`** (no `fill-current`). |
 
 ## Configuration surface
 

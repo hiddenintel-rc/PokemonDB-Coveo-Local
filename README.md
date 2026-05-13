@@ -49,6 +49,7 @@ This section tracks the **Pokémon Challenge (Pre-Sales, 2026)** document line-b
 - Four facets: type, generation, ability, BST (numeric with 5 labeled tiers).
 - RGA-generated answer panel with citations + 👍/👎 feedback above the result list.
 - Each card is a Next.js `<Link>` to `/pokemon/[slug]` and emits a `documentClick` analytics event via `buildInteractiveResult` (ART training signal).
+- **Detail page** (`PokemonDetailView`): same **catalog** background and centered sheet as search; Coveo-backed slug fetch; stacked **Stats** card — see `docs/application-components.md` and **DD-16** in `docs/design-decisions.md`.
 
 ### Intermediate
 

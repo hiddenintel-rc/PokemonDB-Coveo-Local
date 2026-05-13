@@ -57,18 +57,18 @@ This document records **why** the solution is shaped the way it is. It is intend
 
 **Decision:** Use lowercase, no-separator field names mirrored 1:1 in index, scrape config, mapping rules, `fieldsToInclude`, and `buildFacet`/`buildNumericFacet` field arguments. Current schema:
 
-- **String:** `pokemontype` (multi-value), `pokemongeneration`, `pokemonability` (multi-value), `pictureuri`.
+- **String:** `pokemontype` (multi-value), `pokemongeneration`, `pokemonability` (multi-value), `pictureuri`, `pokemonnationalnumber` (National Pokédex № from your Web scraper — **String or Integer 32**; app formats as `#0150`).
 - **Integer 32:** `pokemonbst`, `pokemonhp`, `pokemonattack`, `pokemondefense`, `pokemonspatk`, `pokemonspdef`, `pokemonspeed`.
 
 **Rationale:** Consistent mapping from HTML → index → Headless. Mismatch between the field name and the mapping rule (`%[fieldname]`) is the most common silent failure in Coveo scraping setups; one canonical lowercase name eliminates that surface area. Per-stat integer fields are kept in the index even though only `pokemonbst` is faceted today — they enable future `buildSort` / ranking expressions at zero ongoing cost.
 
 ## DD-8: `fieldsToInclude` on `buildResultList`
 
-**Decision:** Pass an explicit **`fieldsToInclude`** array when building the **ResultList** controller (`web/src/coveo/search-instance.ts`), covering every custom field the UI reads from **`result.raw`** (plus **`syspictureuri`** as a mirror of **`pictureuri`** in many orgs, and `picture_uri`/`pokemon_generation` underscored fallbacks for alternate field-naming conventions).
+**Decision:** Pass an explicit **`fieldsToInclude`** array when building the **ResultList** controller (`web/src/coveo/search-instance.ts`), covering every custom field the UI reads from **`result.raw`** on cards (including **`pokemonnationalnumber`**), plus **`syspictureuri`** as a mirror of **`pictureuri`** in many orgs, and `picture_uri`/`pokemon_generation` underscored fallbacks for alternate field-naming conventions.
 
 **Context:** Headless documents that if **`fieldsToInclude`** is omitted, only **default** fields are returned on each hit. **Content Browser** still shows stored custom fields, which is easy to mistake for "search already returns them."
 
-**Rationale:** Ensures `PokemonCard` receives image, facet-related values, and the BST integer in `raw` without relying on undocumented defaults.
+**Rationale:** Ensures `PokemonCard` receives image URIs, facet fields, BST, and national № in `raw` without relying on undocumented defaults.
 
 ## DD-9: Whole-card `<Link>` + per-result `buildInteractiveResult`
 
@@ -184,3 +184,17 @@ This project is a non-Commerce Search implementation on a trial org. Pinning `'l
 **Considered alternative:** Stay on `'next'`. Rejected — it's actively flagged by Coveo as inappropriate for non-Commerce, the warning is non-suppressible from inside Headless, and the only theoretical benefit (server-side search-event logging) is part of EP's still-closed-beta surface for this implementation type.
 
 **Trade-off:** EP is the long-term direction for Coveo analytics; when EP moves out of closed beta for Search / Service / Website / Workplace, revisit and migrate. Tracked in `docs/next-steps.md` §3.6.
+
+## DD-16: Pokémon detail page — catalog UI parity with search (stacked cards, light sheet, explicit stat fills)
+
+**Decision:** The detail route (`PokemonDetailView`) uses the same catalog chrome as the home search surface: `bg-pokedex-catalog` on the route wrapper, `PokedexDetailChrome` (`AppShell` with `max-w-[42rem] lg:max-w-6xl bg-white/95`, Coveo Pokédex eyebrow, sky back link), species meta line (national № · BST) then `h1`, then a stacked layout — primary white `Card` (sprite in `zinc-100` square, types / generation / abilities, footer) and a secondary Stats `Card` (`bg-zinc-50`, `data-region="pokemon-stats"`) with `BaseStatsPanel`. Stats are not hosted in a collapsible right `SidePanel` on this route (that pattern was dropped to avoid a dark column under `prefers-color-scheme: dark` and to mirror pokemondb’s separate stats block). `SidePanel` remains in `components/layout/` for reuse.
+
+**Stat bars:** Filled segments use explicit `fill-sky-*` classes on SVG rects — not `fill-current` — so bar color does not inherit `currentColor` from context (which had produced unreadable bars).
+
+**Viewport fill:** `page.tsx` (home and `pokemon/[slug]`) uses `min-h-dvh` on the catalog wrapper so the striped background covers the full viewport on short pages (avoids exposing the root body background below the sheet).
+
+**Detail fetch URI OR-list:** `fetchPokemonBySlug` queries `@uri` against both `pokemondb.net` and `www.pokemondb.net`, with and without a trailing slash, so slug lookup succeeds regardless of which canonical host the index stored.
+
+**Rationale:** Reviewers and production users should see one cohesive light Pokédex catalog across `/` and `/pokemon/...`, including when the OS requests dark mode — without maintaining a second dark-theme layout for the detail stats rail.
+
+**Trade-off:** Wide-desktop users no longer get stats in a persistent side column; the stats card scrolls with the page. If a side-by-side layout returns later, `SidePanel` shell styles now force `dark:!bg-white` so the panel cannot revert to `zinc-900` accidentally.

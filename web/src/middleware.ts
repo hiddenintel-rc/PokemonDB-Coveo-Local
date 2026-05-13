@@ -21,14 +21,19 @@ function generateNonce(): string {
  * for: `search`, `searchQuerySuggest`, `facetSelect`, `documentClick` (ART), `genqa.*` (RGA), etc.
  *
  * - `https://*.cloud.coveo.com` — covers US/EU/APAC platform + analytics hostnames (e.g. `analytics-au.cloud.coveo.com`).
+ * - `https://*.org.coveo.com` — **Search API** host pattern Headless uses (`{organizationId}.org.coveo.com/rest/search/v2`).
+ *   Without this, the browser blocks search with CSP and Headless reports `Disconnected` / statusCode 0.
  * - `wss://*.cloud.coveo.com` — **connect-src** applies to WebSockets separately; RGA / streaming may use `wss:` to the platform.
  * - Explicit US/EU analytics + `static.cloud.coveo.com` — belt-and-suspenders for reviewers and older hard-coded clients.
  *
  * If the Admin Console shows a different region host after a migration, add it here (or rely on `*.cloud.coveo.com` if it matches).
  */
 function contentSecurityPolicy(n: string): string {
+  const isDev = process.env.NODE_ENV === "development";
+
   const coveoConnect =
     "https://*.cloud.coveo.com " +
+    "https://*.org.coveo.com " +
     "wss://*.cloud.coveo.com " +
     "https://platform.cloud.coveo.com " +
     "https://platform-eu.cloud.coveo.com " +
@@ -37,9 +42,18 @@ function contentSecurityPolicy(n: string): string {
     "https://analytics-au.cloud.coveo.com " +
     "https://static.cloud.coveo.com";
 
+  // In dev mode, Next.js (Turbopack) and React use eval() for source-map
+  // reconstruction, HMR, and callstack debugging. 'unsafe-eval' is required
+  // locally or the browser blocks the runtime entirely. It is never emitted
+  // in production (NODE_ENV === 'production'), so the live Vercel deployment
+  // keeps the strict CSP with no eval() permitted.
+  const scriptSrc = isDev
+    ? `script-src 'self' 'nonce-${n}' 'strict-dynamic' 'unsafe-eval'`
+    : `script-src 'self' 'nonce-${n}' 'strict-dynamic'`;
+
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${n}' 'strict-dynamic'`,
+    scriptSrc,
     `style-src 'self' 'nonce-${n}'`,
     "img-src 'self' data: blob: https://img.pokemondb.net https://www.pokemondb.net https://*.cloud.coveo.com",
     "font-src 'self' data:",

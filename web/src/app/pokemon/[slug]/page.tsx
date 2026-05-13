@@ -21,7 +21,7 @@ export default function PokemonDetailPage({
 }) {
   const { slug } = use(params);
   return (
-    <div className="min-h-full bg-zinc-50 dark:bg-black">
+    <div className="min-h-dvh bg-pokedex-catalog text-zinc-950">
       {/* `key={slug}` remounts the view (and resets its state to "loading")
           when navigating between detail pages without an in-effect setState. */}
       <PokemonDetailView key={slug} slug={slug} />
