@@ -44,7 +44,7 @@ This document maps the **`web/`** app (Vercel + Coveo Headless, public search) t
 **Current controls**
 
 - **Vercel** serves the app over **HTTPS**.
-- CSP includes **`upgrade-insecure-requests`** ([middleware](../web/src/middleware.ts)).
+- CSP includes **`upgrade-insecure-requests`** ([proxy](../web/src/proxy.ts)).
 - **`.env*`** gitignored; no PEM material in repo.
 
 **Gaps / actions**
@@ -63,7 +63,7 @@ This document maps the **`web/`** app (Vercel + Coveo Headless, public search) t
 - **Coveo filter:** `normalizeSlug()` restricts URL slugs to `^[a-z0-9-]+$` before building `@uri==(...)` in [`fetch-pokemon-by-slug.ts`](../web/src/coveo/fetch-pokemon-by-slug.ts).
 - **Headless** builds search requests from controlled controller APIs (not raw string concatenation from URL).
 - **RGA** answer rendered as **plain text** (no `dangerouslySetInnerHTML`).
-- **CSP:** nonce-based **`script-src`** / **`style-src`**, tight **`img-src`**, allowlisted **`connect-src`** for Coveo ([middleware](../web/src/middleware.ts)).
+- **CSP:** nonce-based **`script-src`** / **`style-src`**, tight **`img-src`**, allowlisted **`connect-src`** for Coveo ([proxy](../web/src/proxy.ts)).
 
 **Gaps / actions**
 
@@ -90,14 +90,14 @@ This document maps the **`web/`** app (Vercel + Coveo Headless, public search) t
 
 **Current controls**
 
-- **CSP** + per-request nonce; **`frame-ancestors 'none'`**, **`object-src 'none'`**, **`base-uri 'self'`**, **`form-action 'self'`** ([middleware](../web/src/middleware.ts)).
+- **CSP** + per-request nonce; **`frame-ancestors 'none'`**, **`object-src 'none'`**, **`base-uri 'self'`**, **`form-action 'self'`** ([proxy](../web/src/proxy.ts)).
 - **`next.config.ts`:** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-DNS-Prefetch-Control`.
 - **Vercel:** Root **`web`**, Framework **Next.js**, LTS **Node** (see root [README](../README.md#deployment-github--vercel)).
 
 **Gaps / actions**
 
 - **Preview deployments:** If env vars are weaker, previews can leak behavior—scope **Preview** env in Vercel intentionally.
-- **`middleware` → `proxy`:** Next **16.2** may deprecate the middleware file name—track [Next.js](https://github.com/vercel/next.js/releases) so security headers are not dropped during migration.
+- **CSP lives in `proxy.ts`:** Next **16.2** uses the **`proxy`** file convention instead of **`middleware`**; keep matcher exclusions for static assets when editing.
 
 ---
 
@@ -138,7 +138,7 @@ This document maps the **`web/`** app (Vercel + Coveo Headless, public search) t
 **Gaps / actions**
 
 - Enable **Dependabot** / **Renovate** on the GitHub repo for PR-based upgrades.
-- After upgrades, run **`npm run build`**, **`npm run lint`**, and smoke the hosted app (e.g. [`tools/seed-ml` smoke](../tools/seed-ml/) against staging URL).
+- After upgrades, run **`npm run build`**, **`npm run lint`**, and smoke the hosted app with **your own** end-to-end runner (or manual checks) against the staging URL.
 
 ---
 

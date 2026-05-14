@@ -341,36 +341,15 @@ ML models train from **analytics events** the app emits — primarily `search`, 
 - Click into results — `documentClick` is the strongest training signal for QS and ART. **App-side wiring is in place** (per-card `buildInteractiveResult.select()` in `PokemonCard`), so every card click in the live app emits one `documentClick` event before navigating to `/pokemon/[slug]`.
 - For RGA, ask natural-language questions ("which Pokémon learn Bulk Up?") and rate the answers if your UI supports it.
 
-**Automated warm-up (optional):** A Playwright seeder lives in **`tools/seed-ml/`** with its own `package.json`, so **`npm install` in `web/` does not pull Playwright** — contributors who only build the Next app get a clean, smaller install.
+**Automated warm-up (optional, not in this repository):** The public **GitHub** clone **gitignores** `tools/seed-ml/` and `tools/push-yaml/` so contributors never pull Playwright binaries or Push CLI templates by default. To script the same analytics **locally**, create your own Playwright (or other) runner against `npm run dev` (or a hosted preview) and reproduce the events Headless already emits from real UI use:
 
-```bash
-cd web && npm install && npm run dev    # terminal 1 — app must be running
+| Goal | Events to fire from the browser |
+|------|-----------------------------------|
+| **QS** | `search` + per-keystroke **`searchQuerySuggest`** traffic; pick a suggestion or submit; then **`documentClick`** on a result (Coveo treats search + result click as the suggestion-candidate signal). |
+| **ART** | **`documentClick`** on result cards (the app calls `buildInteractiveResult.select()` before navigation). |
+| **RGA** | `search` on natural-language queries; **`genqa`** stream; optional **`genqa.citationClick`**. |
 
-cd tools/seed-ml && npm install
-npm run setup                           # one-time: Chromium binary (~150 MB)
-npm run seed                            # terminal 2 — drives the real UI
-```
-
-Useful variations (always from `tools/seed-ml/`):
-
-| Command | What it does |
-|---------|---------------|
-| `npm run seed:headed` | Same run, with the browser visible (good for debugging selectors). |
-| `npm run seed -- --bucket qs` | Only Query Suggestions seeds. |
-| `npm run seed -- --bucket rga` | Only natural-language RGA seeds. |
-| `npm run seed -- --bucket facets` | Only facet-toggle seeds. |
-| `npm run seed -- --loops 3 --throttle 800` | Repeat the full corpus 3× with 800 ms between actions. |
-| `npm run seed -- --url http://localhost:3001` | Point at a different port (or a hosted preview). |
-
-Seed lists live in [`tools/seed-ml/queries.json`](../tools/seed-ml/queries.json); edit freely. The runner emits the same Coveo analytics events a real user does (`search`, `searchQuerySuggest`, `facetSelect`, `genqa.citationClick`). The seeder itself does **not** click result cards (the facet seeds already produce enough re-search signal for QS/RGA), but the companion **smoke test** in the same package does fire one `documentClick` per run via the `buildInteractiveResult.select()` path on the first PokemonCard — enough to keep a steady trickle of ART training signal flowing during development:
-
-```bash
-cd tools/seed-ml
-npm run smoke                # 9 e2e assertions, ~8s, exit code 0/1
-npm run smoke -- --headed    # watch it
-```
-
-The smoke is documented in detail in [`web/README.md`](../web/README.md) and doubles as a regression guard for the duplicate-key React warning and the Coveo `Analytics Mode: "Next"` warning (DD-15). For higher-volume ART training, real reviewer traffic on the hosted app is still the more representative source.
+Keep credentials in **`.env.local`** (or CI secrets) only — never commit keys. For higher-volume ART signal, real reviewer traffic on the hosted app remains the most representative source.
 
 ### Impacts and trade-offs
 

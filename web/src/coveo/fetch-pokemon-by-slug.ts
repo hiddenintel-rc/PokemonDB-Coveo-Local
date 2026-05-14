@@ -26,7 +26,15 @@ export type PokemonDetailHit = {
 const COVEO_SEARCH_ENDPOINT =
   "https://platform.cloud.coveo.com/rest/search/v2";
 
-/** All custom fields rendered on the detail page — includes BST + six individual stat fields for the stats section. */
+/**
+ * Source the detail-page fetch is scoped to — must match the value used by the
+ * Headless engine's `cq` filter in `search-instance.ts` so the two views agree
+ * on which Coveo docs are canonical for any given URI. Same string, same place:
+ * if the source is renamed in Admin, update both files.
+ */
+const COVEO_PUSH_SOURCE_NAME = "PokemonDB Reference (YAML)";
+
+/** All custom fields rendered on the detail page — includes BST + six individual stat fields plus the v2 enrichment fields from the YAML Push source. */
 const DETAIL_FIELDS_TO_INCLUDE = [
   "pictureuri",
   "syspictureuri",
@@ -43,6 +51,14 @@ const DETAIL_FIELDS_TO_INCLUDE = [
   "pokemonspeed",
   "picture_uri",
   "pokemon_generation",
+  "pokemonspecies",
+  "pokemonrelease",
+  "pokemongrowthrate",
+  "pokemoncatchrate",
+  "pokemonheight",
+  "pokemonweight",
+  "pokemonform",
+  "pokemonevyield",
 ];
 
 /** Pull the URL slug from a Coveo result's `clickUri` (last non-empty path segment). */
@@ -98,6 +114,10 @@ export async function fetchPokemonBySlug(
     organizationId: orgId,
     searchHub,
     aq: `@uri==(${candidates})`,
+    // Scope to the Push source so we don't accidentally return a stale Web-crawler
+    // copy when both sources still hold a doc for the same URI. Mirrors the
+    // `cq` injected by `search-instance.ts`'s preprocessRequest.
+    cq: COVEO_PUSH_SOURCE_NAME ? `@source=="${COVEO_PUSH_SOURCE_NAME}"` : undefined,
     q: "",
     numberOfResults: 1,
     fieldsToInclude: DETAIL_FIELDS_TO_INCLUDE,

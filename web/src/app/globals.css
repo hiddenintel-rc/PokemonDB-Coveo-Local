@@ -52,42 +52,6 @@
 }
 
 /* ─────────────────────────────────────────────
-   Design tokens — dark mode
-   ───────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-
-    --surface-base:    #09090b;   /* zinc-950 */
-    --surface-raised:  #18181b;   /* zinc-900 */
-    --surface-overlay: #27272a;   /* zinc-800 */
-    --surface-sunken:  #3f3f46;   /* zinc-700 */
-
-    --border-subtle:   #27272a;   /* zinc-800 */
-    --border-default:  #3f3f46;   /* zinc-700 */
-    --border-strong:   #52525b;   /* zinc-600 */
-
-    --text-primary:    #fafafa;   /* zinc-50  */
-    --text-secondary:  #a1a1aa;   /* zinc-400 */
-    --text-muted:      #71717a;   /* zinc-500 */
-    --text-faint:      #52525b;   /* zinc-600 */
-
-    --color-brand:        #10b981;  /* emerald-500 */
-    --color-brand-hover:  #059669;  /* emerald-600 */
-    --color-brand-subtle: #052e16;  /* emerald-950 */
-    --color-brand-text:   #6ee7b7;  /* emerald-300 */
-
-    --color-accent:   #38bdf8;    /* sky-400 */
-    --color-danger:   #fb7185;    /* rose-400 */
-    --color-warning:  #fbbf24;    /* amber-400 */
-
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  }
-}
-
-/* ─────────────────────────────────────────────
    Tailwind theme bridge — exposes tokens as
    bg-surface-base, text-text-primary, etc.
    ───────────────────────────────────────────── */
@@ -162,43 +126,6 @@ body {
     background-size: auto, min(86vw, 680px) 100%;
     background-position: center, center;
   }
-
-  /* Side panel transition helpers */
-  .side-panel-grid {
-    display: grid;
-    grid-template-columns: 1fr 0px;
-    transition: grid-template-columns 260ms ease;
-  }
-  .side-panel-grid[data-open="true"] {
-    grid-template-columns: 1fr var(--side-panel-width);
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .bg-catalog-stripes {
-    background-color: #09090b;
-    background-image: repeating-linear-gradient(
-      -12deg,
-      transparent,
-      transparent 11px,
-      rgba(63, 63, 70, 0.45) 11px,
-      rgba(63, 63, 70, 0.45) 12px
-    );
-  }
-
-  /* Same canvas as search so detail route reads as one catalog (stripes + centered sheet). */
-  .bg-pokedex-catalog {
-    background-color: #09090b;
-    background-image: repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 13px,
-      rgba(63, 63, 70, 0.4) 13px,
-      rgba(63, 63, 70, 0.4) 18px
-    );
-    background-repeat: repeat;
-    background-size: auto;
-  }
 }
 
 /*
@@ -211,6 +138,11 @@ body {
  *   [data-product-filter="pokemon-generation"]
  *   [data-product-filter="pokemon-ability"]
  *   [data-product-filter="pokemon-bst"]
+ *   [data-product-filter="pokemon-catch-rate"]
+ *   [data-product-filter="pokemon-release"]
+ *   [data-product-filter="pokemon-growth-rate"]
+ *   [data-product-filter="pokemon-species"]
+ *   [data-product-filter="pokemon-ev-yield"]
  * BEM-style classes on each panel: .product-filter, .product-filter__summary,
  *   .product-filter__panel, .product-filter__options, .product-filter__option,
  *   .product-filter__control, .product-filter__checkbox, .product-filter__option-label,

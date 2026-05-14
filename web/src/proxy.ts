@@ -67,7 +67,8 @@ function contentSecurityPolicy(n: string): string {
   return directives.join("; ");
 }
 
-export function middleware(request: NextRequest) {
+/** Next.js 16+ file convention (replaces `middleware.ts`). Same Edge behavior and `config.matcher`. */
+export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);

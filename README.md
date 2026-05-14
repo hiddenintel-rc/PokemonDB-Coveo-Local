@@ -20,7 +20,7 @@ The browser talks to **Coveo Cloud** using an Anonymous Search API key in develo
 - **Result cards** — artwork from `pictureuri` / fallbacks, national Pokédex number when indexed, BST, type pills; cards link to **`/pokemon/{slug}`** and emit **`documentClick`** for ART.
 - **Generative answering** — RGA panel with citations and feedback when the pipeline returns an answer.
 - **Detail page** — types, generation, abilities, base stats, external link to pokemondb; same catalog layout as search.
-- **Coveo org configuration** — Web source, scraping rules, fields, featured results, and ML models (QS, RGA, ART) are described in **`docs/`** and **`.cursor/rules/coveo-indexing.mdc`**. Optional **Playwright** helpers live in **`tools/seed-ml/`** for ML warm-up and smoke tests.
+- **Coveo org configuration** — Web source, scraping rules, fields, featured results, and ML models (QS, RGA, ART) are described in **`docs/`** and **`.cursor/rules/coveo-indexing.mdc`**. **Playwright ML warm-up / smoke automation is intentionally not in this repository** (see `.gitignore` under `tools/`); use manual searches in the live app or your own scripts if you need to feed QS/ART.
 
 ---
 
@@ -56,7 +56,7 @@ npm run dev
 
 Then open [http://localhost:3000](http://localhost:3000).
 
-**Optional — Coveo ML warm-up (Playwright):** Not part of the `web/` install. If you want to script analytics for Query Suggestions / RGA training, use the separate package under [`tools/seed-ml/`](./tools/seed-ml/) (see [docs/coveo-admin-playbook.md](./docs/coveo-admin-playbook.md) §3 Phase 4).
+**Optional — Coveo ML warm-up:** Not part of the `web/` install. This public clone does **not** ship Playwright automation; run representative searches and clicks in the app yourself, or add a private `tools/` package locally (see [docs/coveo-admin-playbook.md](./docs/coveo-admin-playbook.md) §3 Phase 4 for what events matter).
 
 ---
 
@@ -105,7 +105,7 @@ For architecture context (Coveo vs app hosting), see [`docs/architecture.md`](./
 
 ### Production security (live site)
 
-The `web/` app ships with **nonce-based Content-Security-Policy** (`src/middleware.ts`), **HTTP headers** and **`next/image` allowlists** in `next.config.ts`, and **`PokemonIndexedImage`** so only known HTTPS artwork hosts load in the UI. Details: [`docs/security-review.md`](./docs/security-review.md). **OWASP Top 10 deployment mapping** and `npm audit`: [`docs/owasp-deployment-review.md`](./docs/owasp-deployment-review.md).
+The `web/` app ships with **nonce-based Content-Security-Policy** (`src/proxy.ts`), **HTTP headers** and **`next/image` allowlists** in `next.config.ts`, and **`PokemonIndexedImage`** so only known HTTPS artwork hosts load in the UI. Details: [`docs/security-review.md`](./docs/security-review.md). **OWASP Top 10 deployment mapping** and `npm audit`: [`docs/owasp-deployment-review.md`](./docs/owasp-deployment-review.md).
 
 ---
 

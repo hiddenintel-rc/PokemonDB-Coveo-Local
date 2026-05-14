@@ -24,7 +24,7 @@ This file mixes two concerns on purpose: (1) a **changelog-style** record of maj
 
 ### Design summary
 
-Single-number summary of stat budget. Used as the **primary** Stats facet on the search page, rendered as five labeled community tiers (see "Tiers" below). Alongside `pokemonbst`, the scrape captures the six individual stats (HP, Attack, Defense, Sp. Atk, Sp. Def, Speed) as Integer 32 fields — not surfaced as facets today, but **available in the index for sorting, ranking expressions, or future per-stat facets** at zero additional admin cost.
+Single-number summary of stat budget. Used as the **primary** Stats facet on the search page, rendered as five labeled community tiers (see "Tiers" below). Alongside `pokemonbst`, the scrape captures the six individual stats (HP, Attack, Defense, Sp. Atk, Sp. Def, Speed) as Integer 32 fields — **not** exposed as separate facets on the home page (BST + **catch rate** use **`buildNumericFacet`** instead); they remain **available in the index** for sorting, ranking expressions, or future per-stat facets at zero additional admin cost.
 
 ### Tiers (driving the numeric facet)
 
@@ -113,7 +113,7 @@ Today these fields are facet-only. Toggling Free text search makes a query like 
 
 - QS model status is **"Limited"** until a few queries train it. With 0 candidates the dropdown stays empty even when typing — that's the model warming up, not a code defect. After several real searches the suggestions begin to populate.
 - `selectSuggestion(value)` updates the search box AND submits, and emits a `searchQuerySuggest` analytics event so the model learns from selections.
-- **Warm-up tool (optional):** Playwright seeder under `tools/seed-ml/` — not part of `web/` install. See [coveo-admin-playbook.md §3 Phase 4 — Verify and warm up](./coveo-admin-playbook.md#phase-4--verify-and-warm-up) for usage and `tools/seed-ml/queries.json` for the seed corpus.
+- **Warm-up tool (optional):** Not part of `web/` install. This repository **does not ship** Playwright automation (`tools/seed-ml/` is gitignored); use manual searches + clicks in the app or your own browser driver. See [coveo-admin-playbook.md §3 Phase 4 — Verify and warm up](./coveo-admin-playbook.md#phase-4--verify-and-warm-up) for which analytics events matter.
 
 ### 3.5. Search-within-facet on Ability (and Type) — **medium effort, big UX win**
 
@@ -144,7 +144,7 @@ Today these fields are facet-only. Toggling Free text search makes a query like 
 - Citations log click analytics via `logCitationClick(citationId, answerId)` on click — feeds RGA training signal.
 - Feedback buttons disable themselves after submission (`feedbackSubmitted`) and a "Thanks!" label confirms the send.
 - Analytics mode: the engine is pinned to **`analyticsMode: 'legacy'`** (Coveo UA, `analytics.js`) in `web/src/coveo/search-instance.ts`. Headless v3 defaults to `'next'` (Event Protocol), but Coveo's own v2→v3 guide states that EP is GA only for **Commerce** orgs — for Search / Service / Website / Workplace implementations they instruct non-Commerce projects to use `'legacy'`. Switching back silences the "this mode is not available for Coveo for Service features" warning the panel inherited from `buildGeneratedAnswer`, keeps `pokemon_QS` / `pokemon_RGA` / `pokemon_ART` training on the UA event shape they were designed against, and preserves access to `analyticsClientMiddleware` if we ever need request-time event redaction. Revisit if/when Coveo promotes EP out of closed beta for non-Commerce.
-- **Warm-up tool:** From `tools/seed-ml/`, run `npm run seed -- --bucket rga` (after `npm install` there) to submit natural-language questions and follow the first citation per answer (firing `genqa` + `genqa.citationClick`). Use it once the Admin model status moves past "Build in progress". This package is optional and is not installed with `web/`.
+- **Warm-up tool:** Run representative NL queries and citation clicks **manually** in the app (or automate with your own Playwright project — not included in this repo). Use it once the Admin model status moves past "Build in progress".
 
 ### 3.7. Automatic Relevance Tuning (ART) — **Shipped (model + wiring); accumulating signal**
 
@@ -182,7 +182,7 @@ Admin-only. Use sparingly — easy to over-bias and obscure ART.
 
 ### 3.10. Dynamic Navigation Experience (DNE / Facet Generator) — **deferred for now**
 
-Would require migrating from per-controller `buildFacet` to **`buildFacetGenerator`**. Worth the refactor only when the index has enough candidate facets (15+) for DNE's "show the right facets per query" logic to matter. With 3-4 facets, hand-rolled wins.
+Would require migrating from per-controller `buildFacet` / `buildNumericFacet` to **`buildFacetGenerator`**. Worth the refactor only when the index has enough *candidate* facets (15+) for DNE's "show the right facets per query" logic to matter. With **many** curated facets already in the UI, hand-rolled panels still win on clarity.
 
 **Side note:** adopting `buildFacetGenerator` later would *also* make the **Display name** field in Coveo Admin (e.g. `Pokemon Ability`) drive the React panel heading automatically, replacing the current hard-coded `heading="Ability"` strings.
 

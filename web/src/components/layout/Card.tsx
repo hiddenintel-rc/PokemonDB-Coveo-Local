@@ -60,8 +60,7 @@ export function Card({
   } else if (variant === "flat") {
     surfaceClasses = "bg-surface-raised border-border-subtle";
   } else {
-    surfaceClasses =
-      "bg-surface-base border-border-default dark:bg-zinc-950 dark:border-zinc-800";
+    surfaceClasses = "bg-surface-base border-border-default";
   }
 
   return (
@@ -76,29 +75,3 @@ export function Card({
   );
 }
 
-/**
- * A labelled section inside a Card — thin top border separator with a heading.
- * Use to break a card into scannable chunks without nesting another card.
- */
-export function CardSection({
-  label,
-  children,
-  className = "",
-}: {
-  label?: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={`border-t border-zinc-200 pt-4 dark:border-zinc-200 ${className}`}
-    >
-      {label && (
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
-          {label}
-        </h3>
-      )}
-      {children}
-    </section>
-  );
-}

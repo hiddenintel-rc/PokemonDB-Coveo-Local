@@ -11,14 +11,16 @@ This app indexes **pokemondb.net** species pages and exposes a relevance-oriente
 - Facet filter by **Pokémon Type** (`pokemontype`)
 - Facet filter by **Pokémon Generation** (`pokemongeneration`)
 - Facet filter by **Ability** (`pokemonability`)
+- Facet filter by **game release** (`pokemonrelease`), **growth rate** (`pokemongrowthrate`), **species category** (`pokemonspecies`), **EV yield** (`pokemonevyield`)
 - Facet filter by **Base Stat Total** (`pokemonbst`) — 5 labeled community tiers via `buildNumericFacet`
+- Facet filter by **catch rate** (`pokemoncatchrate`) — labeled numeric tiers via `buildNumericFacet` / `CATCH_RATE_TIERS`
 - Pokémon **picture displayed** directly in each result card
 - **BST line** on each card (total from index)
 - **Pokémon detail page** (`/pokemon/[slug]`) reachable from each result
 - **Query Suggestions** (`pokemon_QS` model, app combobox)
 - **Relevance Generative Answering** (`pokemon_RGA` model, citations + feedback)
 - **Automatic Relevance Tuning** (`pokemon_ART` model, `documentClick` analytics wired via `buildInteractiveResult`)
-- Optional **Playwright seeder** (`tools/seed-ml/`) to warm up ML models
+- Optional **Playwright-based ML warm-up** (not in this repository — maintain your own runner locally if needed)
 
 Stack: **@coveo/headless 3.50.x** + **Next.js 16.2.x (App Router)** + **React 19.2.x** + **Tailwind 4.x** (TypeScript).
 
@@ -32,9 +34,9 @@ Stack: **@coveo/headless 3.50.x** + **Next.js 16.2.x (App Router)** + **React 19
 - **Search Token**: server-issued token recommended for production; not implemented in this scaffold (deliberate — see `docs/design-decisions.md` DD-3)
 
 ### Sources
-- **Web (cloud crawler) source**: this project uses one named `PokemonDB Crawl`. URL rules restrict it to `/pokedex/{slug}` species pages and exclude `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
-- **Push source**: alternative — not used here
-- **Tip**: create a second source pointing only at `https://pokemondb.net/pokedex/bulbasaur` for fast scrape/selector iteration without recrawling the full dex
+- **Web (cloud crawler) source**: `PokemonDB Crawl`. URL rules restrict it to `/pokedex/{slug}` species pages and exclude `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`
+- **Push source** (`PokemonDB Reference (YAML)` — name in code as `COVEO_PUSH_SOURCE_NAME` in `web/src/coveo/search-instance.ts` / `fetch-pokemon-by-slug.ts`): YAML- or pipeline-driven documents you ingest via **Coveo Push**; **`cq`** on every Headless search (and the detail fetch) scopes results to this source so the app does not mix stale crawl duplicates for the same URI. Crawl + push can coexist in one org index.
+- **Tip**: create a second **Web** source pointing only at `https://pokemondb.net/pokedex/bulbasaur` for fast scrape/selector iteration without recrawling the full dex
 
 ### Web Scraping Configuration
 - Attached to a Web source; controls what metadata is extracted from each crawled page
@@ -60,9 +62,11 @@ Custom fields live in Admin → Content → Fields. **All shipped:**
 | `pokemonspdef` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Sp. Def row |
 | `pokemonspeed` | Integer 32 | Yes (auto) | No | Yes (auto) | Base Stats table → Speed row |
 
+**YAML Push** (same item URIs, extra columns — ingest via your **Push** pipeline / Admin field mapping): e.g. `pokemonspecies`, `pokemonrelease`, `pokemongrowthrate`, `pokemoncatchrate`, `pokemonheight`, `pokemonweight`, `pokemonform`, `pokemonevyield` (Admin field names match `search-instance.ts` `fieldsToInclude`).
+
 - **Integer 32** is what trial orgs offer (Long isn't exposed). For Pokémon stats (max ~720) it's wildly sufficient.
 - Coveo **auto-locks** Facet=Yes, Sortable=Yes, Multi-value=No when you pick Integer 32 — no manual toggling needed.
-- Per-stat fields are unused by the UI today (only `pokemonbst` is faceted) but kept in the index for future sorting (`buildSort`), ranking expressions (`@pokemonspeed>=120^15`), and per-stat facets.
+- The six per-stat HP–Speed fields are **not** separate facets in the UI; **`pokemonbst`** and **`pokemoncatchrate`** use **numeric** facets. Detail page and cards read additional push/scrape fields from `result.raw` (`fieldsToInclude` in code is canonical).
 - Default fields: `title`, `uri`, `clickUri`, `date`, `filetype`, `language` (auto-populated, no schema work).
 
 ### Facets
@@ -73,8 +77,8 @@ Custom fields live in Admin → Content → Fields. **All shipped:**
 ### Machine Learning models (all live)
 - **`pokemon_QS`** — Query Suggestions, associated to default pipeline; status: Limited until traffic accumulates
 - **`pokemon_RGA`** — Relevance Generative Answering, associated; status: Active
-- **`pokemon_ART`** — Automatic Relevance Tuning, associated; status: Build in progress (training on `documentClick` events from `buildInteractiveResult`)
-- Optional warm-up: `tools/seed-ml/` Playwright runner (`npm run seed` from that folder)
+- **`pokemon_ART`** — Automatic Relevance Tuning, associated; status in Admin moves between **Build in progress**, **Limited**, and **Active** as `documentClick` traffic and rebuilds accumulate
+- Optional warm-up: use **manual** searches in the app or your **own** Playwright project (not shipped here)
 
 ### Search API
 - Endpoint: `https://platform.cloud.coveo.com/rest/search/v2` (US region)
@@ -113,4 +117,4 @@ Full operational procedures: see [`docs/coveo-admin-playbook.md`](../../docs/cov
 ## NPM Packages
 - `@coveo/headless` — state management, engine, controllers (pinned to `^3.50.1`)
 - No separate React wrapper (`@coveo/headless-react`) needed for client-side rendering; use vanilla `@coveo/headless` with the `useCoveoController` hook in `web/src/hooks/`
-- Optional dev dependency: `playwright` + `tsx` in the **separate** `tools/seed-ml/` package — NOT installed by `web/`
+- Optional dev dependency: **playwright** + **tsx** only if you create a **private** local automation package — **not** part of this repo or `web/`

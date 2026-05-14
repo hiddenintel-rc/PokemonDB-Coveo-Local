@@ -33,7 +33,7 @@ This document records **why** the solution is shaped the way it is. It is intend
 
 ## DD-4: Singleton engine and controllers
 
-**Decision:** One **SearchEngine** instance and one set of **controllers** (search box w/ QS, result list, three string facets, one numeric facet, generated answer) are created per browser session via module-level singletons in `search-instance.ts`. Per-result `buildInteractiveResult` controllers are the deliberate exception — one per card, memoized by `result` reference.
+**Decision:** One **SearchEngine** instance and one set of **controllers** (search box w/ QS, result list, **seven** string facets, **two** numeric facets — BST + catch rate — generated answer) are created per browser session via module-level singletons in `search-instance.ts`. Per-result `buildInteractiveResult` controllers are the deliberate exception — one per card, memoized by `result` reference.
 
 **Rationale:** Headless is designed around a single engine and stable controller instances. Multiple engines would duplicate state and analytics.
 
@@ -97,19 +97,18 @@ A naive `<a href={result.clickUri} target="_blank">` on the title would have sat
 
 **Trade-off:** The tier-to-label mapping has to happen in app code via `bstTierForRange(start, end)`. Adding a new tier requires editing both `BST_TIERS` and any code that hard-codes labels.
 
-## DD-11: Separate `tools/seed-ml/` package (rejected: bundled with `web/`)
+## DD-11: Optional automation outside `web/` (not published in this repo)
 
-**Decision:** The Playwright ML warm-up script lives in `tools/seed-ml/` with its own `package.json` and `npm install`. It is **not** a workspace member of `web/`.
+**Decision:** Playwright ML warm-up and Coveo Push CLI tooling live **outside** the published tree: **`tools/seed-ml/`** and **`tools/push-yaml/`** are **gitignored** so `git clone` only pulls **`web/`** + **`docs/`** + rules — no Playwright install, no Push templates, and no accidental commit of automation-adjacent files. The Next.js app remains a standalone deliverable under `web/`. Anyone who wants scripted warm-up or YAML push recreates those directories locally (and keeps `.env` out of git).
 
-**Considered alternative:** Add `playwright` + `tsx` to `web/devDependencies` and an `npm run seed:ml` script.
+**Considered alternative:** Publish `tools/seed-ml/` and `tools/push-yaml/` in git for one-command warm-up / push.
 
 **Rejected because:**
 
-- Playwright ships a ~150 MB Chromium binary on install — punitive for contributors who only want to run the search app.
-- The seeder is an operational tool, not part of the deliverable; coupling it to the deliverable's lockfile bloats every install.
-- A separate package keeps the seeder reusable against any hosted instance of the app (`npm run seed -- --url https://...`).
+- Public clones should stay **minimal** (no Playwright binary, no Push CLI surface, no accidental automation-only secrets in history).
+- Contributors who need scripting recreate **`tools/`** locally; `.gitignore` keeps those paths out of `git push`.
 
-**Trade-off:** Two `npm install`s when both the app and the seeder are needed. Documented in `coveo-admin-playbook.md` §3 Phase 4.
+**Trade-off:** No bundled seed corpus or smoke script in the repo — use manual warm-up per `coveo-admin-playbook.md` §3 Phase 4 or maintain private automation.
 
 ## DD-12: Detail-page fetch bypasses the Headless engine
 
@@ -147,7 +146,7 @@ A naive `<a href={result.clickUri} target="_blank">` on the title would have sat
    - `Permissions-Policy: camera=(), microphone=(), geolocation=()` — unused hardware APIs.
    - **`X-DNS-Prefetch-Control: off`** — no ambient DNS prefetch for linked third-party origins.
 
-2. **`src/middleware.ts`** — **Content-Security-Policy** on HTML navigations (matcher excludes static assets and the image optimizer):
+2. **`src/proxy.ts`** — **Content-Security-Policy** on HTML navigations (matcher excludes static assets and the image optimizer):
 
    - Per-request **nonce** on `script-src` and `style-src` with **`'strict-dynamic'`** so Next.js can load the app shell safely.
    - **`img-src`** allowlists `self`, `blob:`/`data:` (for `next/image`), pokemondb hosts, and **`https://*.cloud.coveo.com`** for Coveo-hosted thumbnails.
@@ -158,7 +157,7 @@ A naive `<a href={result.clickUri} target="_blank">` on the title would have sat
 
 4. **No inline `style` attributes on stat bars** — `PokemonDetailView` **SVG** bar widths avoid `'unsafe-inline'` on `style-src` (rejected earlier approach).
 
-**Trade-off:** If the index ever stores artwork on a **new** HTTPS host, images show **No image** until that hostname is added to **`PokemonIndexedImage`**, **`images.remotePatterns`**, and the CSP **`img-src`** directive (three coordinated edits). **Next.js 16.2** may log a deprecation notice about migrating **`middleware`** → **`proxy`** — follow upstream guidance when upgrading.
+**Trade-off:** If the index ever stores artwork on a **new** HTTPS host, images show **No image** until that hostname is added to **`PokemonIndexedImage`**, **`images.remotePatterns`**, and the CSP **`img-src`** directive (three coordinated edits). **Next.js 16.2** renamed **`middleware.ts`** to **`proxy.ts`** for the same Edge CSP hook — this repo uses `src/proxy.ts`.
 
 **Other deferred items (security audit):**
 
@@ -187,7 +186,7 @@ This project is a non-Commerce Search implementation on a trial org. Pinning `'l
 
 ## DD-16: Pokémon detail page — catalog UI parity with search (stacked cards, light sheet, explicit stat fills)
 
-**Decision:** The detail route (`PokemonDetailView`) uses the same catalog chrome as the home search surface: `bg-pokedex-catalog` on the route wrapper, `PokedexDetailChrome` (`AppShell` with `max-w-[42rem] lg:max-w-6xl bg-white/95`, Coveo Pokédex eyebrow, sky back link), species meta line (national № · BST) then `h1`, then a stacked layout — primary white `Card` (sprite in `zinc-100` square, types / generation / abilities, footer) and a secondary Stats `Card` (`bg-zinc-50`, `data-region="pokemon-stats"`) with `BaseStatsPanel`. Stats are not hosted in a collapsible right `SidePanel` on this route (that pattern was dropped to avoid a dark column under `prefers-color-scheme: dark` and to mirror pokemondb’s separate stats block). `SidePanel` remains in `components/layout/` for reuse.
+**Decision:** The detail route (`PokemonDetailView`) uses the same catalog chrome as the home search surface: `bg-pokedex-catalog` on the route wrapper, `PokedexDetailChrome` (`AppShell` with `max-w-[42rem] lg:max-w-6xl bg-white/95`, Coveo Pokédex eyebrow, sky back link), species meta line (national № · BST) then `h1`, then a stacked layout — primary white `Card` (sprite in `zinc-100` square, types / generation / abilities, footer) and a secondary Stats `Card` (`bg-zinc-50`, `data-region="pokemon-stats"`) with `BaseStatsPanel`. Stats are not hosted in a collapsible right `SidePanel` on this route (that pattern was dropped to mirror pokemondb’s separate stats block). `SidePanel` remains in `components/layout/` for reuse.
 
 **Stat bars:** Filled segments use explicit `fill-sky-*` classes on SVG rects — not `fill-current` — so bar color does not inherit `currentColor` from context (which had produced unreadable bars).
 
@@ -195,6 +194,6 @@ This project is a non-Commerce Search implementation on a trial org. Pinning `'l
 
 **Detail fetch URI OR-list:** `fetchPokemonBySlug` queries `@uri` against both `pokemondb.net` and `www.pokemondb.net`, with and without a trailing slash, so slug lookup succeeds regardless of which canonical host the index stored.
 
-**Rationale:** End users should see one cohesive light Pokédex catalog across `/` and `/pokemon/...`, including when the OS requests dark mode — without maintaining a second dark-theme layout for the detail stats rail.
+**Rationale:** End users should see one cohesive light Pokédex catalog across `/` and `/pokemon/...`. The app is intentionally light-only — no `prefers-color-scheme: dark` token overrides, no `dark:` Tailwind variants in components — so there is only one design surface to maintain.
 
-**Trade-off:** Wide-desktop users no longer get stats in a persistent side column; the stats card scrolls with the page. If a side-by-side layout returns later, `SidePanel` shell styles now force `dark:!bg-white` so the panel cannot revert to `zinc-900` accidentally.
+**Trade-off:** Wide-desktop users no longer get stats in a persistent side column; the stats card scrolls with the page. Users on dark OS themes see the same light Pokédex catalog (browsers do not auto-invert pages; the dev-tools "force dark" emulation is the only path to a forced repaint, and it is acceptable for it to look like a normal light page rendered through that filter).

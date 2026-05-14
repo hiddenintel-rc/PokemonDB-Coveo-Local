@@ -15,9 +15,10 @@ These are **not npm packages**; they are capabilities configured in **Coveo Admi
 |--------------------|----------------------|
 | **Organization** (`roelc_Pokemon` trial) | Tenant boundary for sources, fields, API keys, query pipelines, ML models, and search traffic. |
 | **Web source** (`PokemonDB Crawl`) | Cloud crawler that retrieves pokemondb.net `/pokedex/{slug}` pages per **starting URLs**, **inclusions**, and **exclusions**. |
+| **Push source** (`PokemonDB Reference (YAML)` — name must match `COVEO_PUSH_SOURCE_NAME` in `web/src/coveo/search-instance.ts`) | Species documents ingested via **Push API** (configure in Admin; use your own ingestion pipeline). Supplies extra fields (release, growth rate, catch rate, form, EV yield, …). Headless **`preprocessRequest`** injects `@source==…` so list search matches the detail page. |
 | **Crawling rules** | Restrict which URLs become **items** in the index — single-segment `/pokedex/{slug}` species pages only; explicit exclusions for `/move/`, `/moves/`, `/type/`, `/ability/`, `/item/`, `/mechanic/`, `/pokebase/`, `/evolution/`. Detail: [`.cursor/rules/coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc). |
-| **Web scraping configuration** | Eleven extraction rules (one per custom field) using jsoup-flavored CSS selectors with Coveo's `::text` / `::attr(...)` pseudo-elements. Anchored to stable DOM structures (`#dex-stats`, `main table.vitals-table:first-of-type`) — see [`coveo-admin-playbook.md`](./coveo-admin-playbook.md) §1 for the full selector set and the postmortem on `:has` / `:matchesOwn` failures. |
-| **Fields (schema)** | **Custom fields** include: `pokemontype`, `pokemongeneration`, `pokemonability`, `pictureuri`, `pokemonnationalnumber` (String or Integer 32 — National №), and `pokemonbst`, `pokemonhp`, `pokemonattack`, `pokemondefense`, `pokemonspatk`, `pokemonspdef`, `pokemonspeed` (Integer 32). See [`coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc) for the schema table. |
+| **Web scraping configuration** | Eleven extraction rules (one per custom crawl field) using jsoup-flavored CSS selectors with Coveo's `::text` / `::attr(...)` pseudo-elements. Anchored to stable DOM structures (`#dex-stats`, `main table.vitals-table:first-of-type`) — see [`coveo-admin-playbook.md`](./coveo-admin-playbook.md) §1 for the full selector set and the postmortem on `:has` / `:matchesOwn` failures. |
+| **Fields (schema)** | **Crawl custom fields** include: `pokemontype`, `pokemongeneration`, `pokemonability`, `pictureuri`, `pokemonnationalnumber`, and stat integers (`pokemonbst`, `pokemonhp`, …). **Push** adds further facets/attributes (e.g. `pokemonrelease`, `pokemongrowthrate`, `pokemoncatchrate`, `pokemonevyield`) — see [`coveo-indexing.mdc`](../.cursor/rules/coveo-indexing.mdc) and your Coveo Push field mapping. |
 | **Unified index** | Stores compressed/queryable **items** produced by the source. |
 | **Query pipeline (`default`)** | Routes every search through: **Featured Result** rules (Pikachu pin on `pokemon`, starter pins on `starter`), then ML model evaluation. |
 | **Result-ranking rules (Featured Result)** | Pinned curated species for specific queries. Configured in the default pipeline → Result ranking. |
@@ -35,7 +36,7 @@ These are **not npm packages**; they are capabilities configured in **Coveo Admi
 | **`@coveo/headless-react`** (SSR-oriented) | Client-only rendering is sufficient; revisit when hosted deployment + search tokens land. |
 | **Passage Retrieval API** | Optional extension — build or POV writeup; not started (see `next-steps.md` §3.9). |
 | **Smart Snippets** | Overlaps with RGA, which already handles the "single best answer" role. |
-| **Dynamic Navigation Experience (DNE)** | Requires migrating to `buildFacetGenerator` — not worth the refactor with 4 hand-rolled facets (see `next-steps.md` §3.10). |
+| **Dynamic Navigation Experience (DNE)** | Requires migrating to `buildFacetGenerator` — not worth the refactor yet with many hand-tuned string + numeric facets (see `next-steps.md` §3.10). |
 | **Search-token issuance** | Needs a backend route; out of scope for the local-dev scaffold. |
 
 ---
@@ -95,13 +96,17 @@ The following are **JavaScript APIs** from `@coveo/headless` instantiated in **`
 
 **What the app implements:** Card layout, typography, image fallback chain (`pictureuri` → `picture_uri` → `syspictureuri`), BST chip, type / ability / generation lines.
 
-### 3.4 `buildFacet` (×3 — string facets)
+### 3.4 `buildFacet` (seven string facets)
 
 | Controller | Indexed field | `numberOfValues` | Multi-value | UI purpose |
 |------------|---------------|-----------|---|------------|
 | Type facet | `pokemontype` | 25 | Yes | Filter by Pokémon type(s) |
 | Generation facet | `pokemongeneration` | 15 | No | Filter by generation |
-| Ability facet | `pokemonability` | 50 | Yes | Filter by ability (large cardinality — `injectionDepth: 5000` raises facet scan depth) |
+| Ability facet | `pokemonability` | 50 | Yes | Filter by ability (large cardinality — `injectionDepth: 5000`) |
+| Release facet | `pokemonrelease` | 30 | No | Filter by game release group (YAML push) |
+| Growth rate facet | `pokemongrowthrate` | 20 | No | Filter by experience curve (YAML push) |
+| Species facet | `pokemonspecies` | 50 | No | Filter by Pokédex category label — `injectionDepth: 5000` |
+| EV yield facet | `pokemonevyield` | 12 | Yes | Filter by EV yield keys (YAML push) |
 
 **Headless provides:** facet **values**, **counts**, **selection state**, **`toggleSelect(value)`**.
 
@@ -109,7 +114,9 @@ The following are **JavaScript APIs** from `@coveo/headless` instantiated in **`
 
 **Platform prerequisite:** Fields must exist in Admin → Content → Fields with **Facet = Yes** (and **Multi-value facet = Yes** for `pokemontype` / `pokemonability`).
 
-### 3.5 `buildNumericFacet` (×1 — BST tier ranges)
+### 3.5 `buildNumericFacet` (×2 — BST + catch rate)
+
+**BST (`pokemonbst`)** — five labeled community tiers:
 
 ```
 buildNumericFacet(engine, {
@@ -121,11 +128,13 @@ buildNumericFacet(engine, {
 })
 ```
 
-**Headless provides:** 5 range buckets with counts per tier, **`toggleSelect(NumericFacetValue)`**.
+**Catch rate (`pokemoncatchrate`)** — higher integer = easier catch; tiers from **`CATCH_RATE_TIERS`** in `search-instance.ts` (same `generateAutomaticRanges: false` pattern as BST).
 
-**App implements:** Tier label resolution (`bstTierForRange(start, end)` matching ranges back to `BST_TIERS` for human-readable labels like `Strong (450–519)`).
+**Headless provides:** range buckets with counts, **`toggleSelect(NumericFacetValue)`**.
 
-**Why fixed `currentValues` and not `generateAutomaticRanges: true`:** auto-generated bins produce ugly, meaningless ranges (`256–417`). Manual tier ranges + labels carry far more information per facet row. The tier boundaries live in app code (`BST_TIERS`) — adjusting them does **not** require a re-index because the raw `pokemonbst` integer stays in the index.
+**App implements:** Tier label resolution for BST via `bstTierForRange(start, end)`; catch-rate labels via `catchRateTierForRange`.
+
+**Why fixed `currentValues` and not `generateAutomaticRanges: true`:** auto-generated bins produce awkward ranges; manual tier boundaries stay in app code — adjusting them does **not** require a re-index because raw integers remain in the index.
 
 ### 3.6 `buildGeneratedAnswer` (Coveo RGA)
 
@@ -137,7 +146,7 @@ buildNumericFacet(engine, {
 - **`state.liked`** / **`state.disliked`** / **`state.feedbackSubmitted`** / **`state.answerId`**.
 - Methods: **`logCitationClick(citationId, answerId?)`**, **`like()`**, **`dislike()`**, **`retry()`**.
 
-**Options used:** `fieldsToIncludeInCitations: ['pictureuri', 'syspictureuri', 'pokemontype', 'pokemongeneration', 'pokemonability']` — so each citation's `result.raw` carries our custom fields if the UI ever renders citation thumbnails.
+**Options used:** `fieldsToIncludeInCitations` lists `pictureuri`, `syspictureuri`, `pokemontype`, `pokemongeneration`, `pokemonability`, `pokemonspecies`, `pokemonrelease` — citation `result.raw` carries these when the index populates them.
 
 **App implements:** `GeneratedAnswerPanel` component above the result list. Handles five render states (thinking / streaming / answered / cannot-answer / errored / silent). Plain-text rendering (`whitespace-pre-wrap`) — no `dangerouslySetInnerHTML` per the security audit. Like/dislike buttons disable after `feedbackSubmitted`.
 
@@ -180,7 +189,11 @@ The detail route bypasses the Headless engine and issues a raw `POST /rest/searc
 
 ```ts
 {
-  aq: `@uri==("${canonical}","${canonicalWithSlash}")`,
+  organizationId,
+  searchHub,
+  aq: `@uri==(...)`, // OR of pokemondb / www variants
+  cq: `@source=="PokemonDB Reference (YAML)"`, // must match preprocessRequest + Push source name
+  q: "",
   numberOfResults: 1,
   fieldsToInclude: [...],
   analytics: { enabled: false },
@@ -216,7 +229,7 @@ The Next.js app does **not** implement these protocols directly — Headless ser
 
 | Capability | Provided by Coveo | Provided by custom app |
 |------------|-------------------|-------------------------|
-| Crawling & indexing | Web source, scraping config, pipelines, index | — |
+| Crawling & indexing | Web source, scraping config, **Push** source (your pipeline), pipelines, index | — |
 | Query parsing & retrieval | Search API + index | — |
 | Facet aggregation (string + numeric) | Search API (facet requests driven by Headless) | Rendering facet UI + tier label mapping for numeric |
 | Query Suggestions training & inference | `pokemon_QS` ML model | Rendering combobox dropdown + selectSuggestion plumbing |

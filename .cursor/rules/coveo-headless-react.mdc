@@ -29,6 +29,7 @@ export function getSearchEngine(): SearchEngine {
         search: {
           searchHub: process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? 'PokemonSearch',
         },
+        // preprocessRequest: scopes searches to the YAML Push source + optional prefix wildcards — see full `search-instance.ts`.
       },
     });
   }
@@ -51,19 +52,28 @@ export function coveoConfigured(): boolean {
 
 ## Controller singletons — one bundled `getSearchControllers()`
 
-This project builds **all controllers up-front** in one function rather than one custom hook per controller. The shape is:
+This project builds **all controllers up-front** in one function rather than one custom hook per controller. The authoritative shape is in **`web/src/coveo/search-instance.ts`** (includes **`preprocessRequest`** for source `cq` + prefix wildcards). At a high level:
 
 ```ts
 type SearchControllers = {
   searchBox: SearchBox;
   resultList: ResultList;
-  typeFacet: Facet;            // pokemontype (multi-value)
-  generationFacet: Facet;      // pokemongeneration (single-value)
-  abilityFacet: Facet;         // pokemonability (multi-value, large cardinality)
-  bstFacet: NumericFacet;      // pokemonbst (5 labeled tiers)
-  generatedAnswer: GeneratedAnswer; // RGA
+  typeFacet: Facet;           // pokemontype
+  generationFacet: Facet;    // pokemongeneration
+  abilityFacet: Facet;      // pokemonability (+ injectionDepth)
+  releaseFacet: Facet;      // pokemonrelease
+  growthRateFacet: Facet;   // pokemongrowthrate
+  speciesFacet: Facet;      // pokemonspecies
+  evYieldFacet: Facet;      // pokemonevyield (multi-value)
+  bstFacet: NumericFacet;   // pokemonbst — BST_TIERS
+  catchRateFacet: NumericFacet; // pokemoncatchrate — CATCH_RATE_TIERS
+  generatedAnswer: GeneratedAnswer;
 };
+```
 
+`fieldsToInclude` on **`buildResultList`** and **`fieldsToIncludeInCitations`** on **`buildGeneratedAnswer`** list every custom column the UI reads (including YAML push fields); copy from source when extending.
+
+```ts
 let controllers: SearchControllers | null = null;
 
 export function getSearchControllers(): SearchControllers {
@@ -71,43 +81,15 @@ export function getSearchControllers(): SearchControllers {
     const e = getSearchEngine();
     controllers = {
       searchBox: buildSearchBox(e, { options: { numberOfSuggestions: 8 } }),
-      resultList: buildResultList(e, {
-        options: {
-          fieldsToInclude: [
-            'pictureuri', 'syspictureuri',
-            'pokemontype', 'pokemongeneration', 'pokemonability',
-            'pokemonbst',
-            'picture_uri', 'pokemon_generation', // alternate field-name fallbacks
-          ],
-        },
-      }),
-      typeFacet:       buildFacet(e, { options: { field: 'pokemontype',       numberOfValues: 25 } }),
-      generationFacet: buildFacet(e, { options: { field: 'pokemongeneration', numberOfValues: 15 } }),
-      abilityFacet:    buildFacet(e, {
-        options: { facetId: 'pokemonability', field: 'pokemonability', numberOfValues: 50, injectionDepth: 5000 },
-      }),
-      bstFacet: buildNumericFacet(e, {
-        options: {
-          facetId: 'pokemonbst',
-          field: 'pokemonbst',
-          generateAutomaticRanges: false,
-          currentValues: BST_TIERS.map(({ start, end }) => ({
-            start, end, endInclusive: false, state: 'idle',
-          })),
-        },
-      }),
-      generatedAnswer: buildGeneratedAnswer(e, {
-        fieldsToIncludeInCitations: [
-          'pictureuri', 'syspictureuri', 'pokemontype', 'pokemongeneration', 'pokemonability',
-        ],
-      }) as GeneratedAnswer,
+      resultList: buildResultList(e, { options: { fieldsToInclude: [/* see repo */] } }),
+      // … buildFacet / buildNumericFacet / buildGeneratedAnswer as in search-instance.ts
     };
   }
   return controllers;
 }
 ```
 
-**Why bundled, not one-hook-per-controller:** all controllers share lifecycle (engine, env-guard, hot-reload) and most components consume multiple at once. A single `getSearchControllers()` is less ceremony than seven `useFooController()` hooks.
+**Why bundled, not one-hook-per-controller:** all controllers share lifecycle (engine, env-guard, hot-reload) and most components consume multiple at once. A single `getSearchControllers()` is less ceremony than twelve parallel `useFooController()` hooks.
 
 ## Subscribing in React — the `useCoveoController` hook
 
@@ -137,9 +119,9 @@ const generatedAnswer  = useCoveoController(controllers.generatedAnswer);
 
 The `[controller]` dep array is stable because controllers are module singletons.
 
-## Numeric facet — fixed `currentValues` + label mapping
+## Numeric facets — fixed `currentValues` + label mapping (BST + catch rate)
 
-BST is a `buildNumericFacet` with hard-coded tier ranges:
+**BST** is a `buildNumericFacet` on `pokemonbst` with hard-coded tier ranges:
 
 ```ts
 export const BST_TIERS = [
@@ -156,6 +138,8 @@ export function bstTierForRange(start: number, end: number) {
 ```
 
 In render, map each `NumericFacetValue` back to its tier label by matching `start`/`end`. Don't use `generateAutomaticRanges: true` — Coveo's auto-bins are ugly and meaningless (e.g. `256–417`).
+
+**Catch rate** mirrors the same pattern on field `pokemoncatchrate` with **`CATCH_RATE_TIERS`** (higher numeric values = easier catches).
 
 ## SearchBox with Query Suggestions — combobox accessibility pattern
 
@@ -218,7 +202,7 @@ The all-quiet branch is essential: when no RGA model is associated to the pipeli
 
 1. Detail-page fetches shouldn't increment the main engine's search count.
 2. They shouldn't emit `search` analytics events that pollute the QS / ART training corpus.
-3. They use an `aq=@uri==(...)` filter that has nothing to do with the user's current search state.
+3. They use an `aq=@uri==(...)` filter plus a **`cq=@source=="…"`** guard (YAML Push) that has nothing to do with the user's current search state.
 
 The home/search UI continues to use the Headless engine singletons via `getSearchControllers()`.
 
@@ -260,6 +244,7 @@ src/
     page.tsx                            # renders <SearchInterface />
     pokemon/[slug]/page.tsx             # detail route, unwraps params via React use()
     globals.css                         # Tailwind entry + product-filter styling hooks
+  proxy.ts                              # Edge: CSP nonce + x-nonce (Next.js 16+ convention)
   coveo/
     search-instance.ts                  # engine + all controllers (singletons)
     fetch-pokemon-by-slug.ts            # one-off detail fetch (no analytics)

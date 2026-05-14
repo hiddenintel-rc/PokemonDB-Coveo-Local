@@ -2,6 +2,7 @@
 
 import {
   bstTierForRange,
+  catchRateTierForRange,
   getSearchControllers,
   getSearchEngine,
   coveoConfigured,
@@ -29,6 +30,11 @@ import {
   formatNationalDex,
   nationalDexFromRaw,
 } from "@/lib/nationalDex";
+import {
+  formatEvYieldStatLabel,
+  formatGrowthRateLabel,
+  formatReleaseLabel,
+} from "@/lib/pokemonFacetLabels";
 
 /** Stable IDs for CSS / design tokens — override via `[data-product-filter="…"]` in `globals.css`. */
 export const PRODUCT_FILTER_IDS = {
@@ -36,6 +42,11 @@ export const PRODUCT_FILTER_IDS = {
   pokemonGeneration: "pokemon-generation",
   pokemonAbility:    "pokemon-ability",
   pokemonBst:        "pokemon-bst",
+  pokemonCatchRate:  "pokemon-catch-rate",
+  pokemonRelease:    "pokemon-release",
+  pokemonGrowthRate: "pokemon-growth-rate",
+  pokemonSpecies:    "pokemon-species",
+  pokemonEvYield:    "pokemon-ev-yield",
 } as const;
 
 /* ── Facet UI ──────────────────────────────────────────────────────────── */
@@ -181,7 +192,14 @@ function bstFromRaw(raw: Record<string, unknown>): number | null {
 
 /* ── PokemonCard ───────────────────────────────────────────────────────── */
 
-function PokemonCard({ result }: { result: Result }) {
+function PokemonCard({
+  result,
+  imagePriority,
+}: {
+  result: Result;
+  /** First viewport of cards: eager-load artwork for LCP (next/image `priority`). */
+  imagePriority?: boolean;
+}) {
   const raw = result.raw as Record<string, unknown>;
   const picture =
     (raw.pictureuri as string | undefined) ||
@@ -212,6 +230,7 @@ function PokemonCard({ result }: { result: Result }) {
             sizes="(max-width:640px) 45vw, (max-width:1024px) 25vw, 160px"
             boxClassName="h-full w-full bg-zinc-100"
             imageClassName="object-contain p-2"
+            priority={imagePriority}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-zinc-400">
@@ -294,22 +313,22 @@ function SearchFailureBanner({ message }: { message: string }) {
   return (
     <div
       role="alert"
-      className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-50"
+      className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950 shadow-sm"
     >
       <p className="font-semibold">Search could not reach Coveo</p>
       <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed">{message}</p>
       {isLikelyCspOrNetwork && (
-        <p className="mt-3 text-xs leading-relaxed text-rose-900/90 dark:text-rose-100/90">
+        <p className="mt-3 text-xs leading-relaxed text-rose-900/90">
           If this appeared after tightening Content-Security-Policy, ensure{" "}
-          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px] dark:bg-rose-900/60">
+          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px]">
             connect-src
           </code>{" "}
           allows Coveo Search on{" "}
-          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px] dark:bg-rose-900/60">
+          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px]">
             https://*.org.coveo.com
           </code>{" "}
           (and your existing{" "}
-          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px] dark:bg-rose-900/60">
+          <code className="rounded bg-rose-100/80 px-1 font-mono text-[11px]">
             *.cloud.coveo.com
           </code>{" "}
           hosts). Then hard-refresh the page.
@@ -326,19 +345,15 @@ function EnvMissingBanner() {
         <p className="font-medium text-text-primary">Coveo environment variables missing</p>
         <p className="mt-2 text-sm text-text-secondary">
           Copy{" "}
-          <code className="rounded bg-surface-overlay px-1 dark:bg-zinc-800">
-            .env.example
-          </code>{" "}
+          <code className="rounded bg-surface-overlay px-1">.env.example</code>{" "}
           to{" "}
-          <code className="rounded bg-surface-overlay px-1 dark:bg-zinc-800">
-            .env.local
-          </code>{" "}
+          <code className="rounded bg-surface-overlay px-1">.env.local</code>{" "}
           and set{" "}
-          <code className="rounded bg-surface-overlay px-1 dark:bg-zinc-800">
+          <code className="rounded bg-surface-overlay px-1">
             NEXT_PUBLIC_COVEO_ORG_ID
           </code>{" "}
           and{" "}
-          <code className="rounded bg-surface-overlay px-1 dark:bg-zinc-800">
+          <code className="rounded bg-surface-overlay px-1">
             NEXT_PUBLIC_COVEO_API_KEY
           </code>
           .
@@ -373,16 +388,16 @@ function GeneratedAnswerPanel({
     <section
       aria-label="AI generated answer"
       data-region="generated-answer"
-      className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-900/60 dark:from-emerald-950/40 dark:to-zinc-950"
+      className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm"
     >
       <header className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
           <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
             <path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4L12 2zM5 14l1 2.6L8 17l-2 .4L5 20l-1-2.6L2 17l2-.4L5 14zm14 0l1 2.6L22 17l-2 .4L19 20l-1-2.6L16 17l2-.4L19 14z" />
           </svg>
           AI-generated answer
           {isThinking && (
-            <span className="ml-1 inline-flex items-center gap-1 text-xs font-normal text-emerald-600/80 dark:text-emerald-400/80">
+            <span className="ml-1 inline-flex items-center gap-1 text-xs font-normal text-emerald-600/80">
               <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
               {state.isStreaming ? "answering…" : "thinking…"}
             </span>
@@ -403,7 +418,7 @@ function GeneratedAnswerPanel({
             <button
               type="button"
               onClick={() => controller.retry()}
-              className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-300"
+              className="ml-2 underline hover:text-emerald-700"
             >
               Retry
             </button>
@@ -426,7 +441,7 @@ function GeneratedAnswerPanel({
                       ? controller.logCitationClick(c.id, state.answerId)
                       : controller.logCitationClick(c.id)
                   }
-                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs text-emerald-800 shadow-sm hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-zinc-900 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs text-emerald-800 shadow-sm hover:bg-emerald-50"
                 >
                   <span className="font-semibold">[{idx + 1}]</span>
                   <span className="max-w-[20ch] truncate">{c.title}</span>
@@ -447,8 +462,8 @@ function GeneratedAnswerPanel({
             aria-pressed={state.liked}
             className={`rounded-md px-2 py-1 transition-colors ${
               state.liked
-                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
-                : "hover:bg-surface-overlay dark:hover:bg-zinc-800"
+                ? "bg-emerald-100 text-emerald-800"
+                : "hover:bg-surface-overlay"
             }`}
           >
             👍
@@ -460,14 +475,14 @@ function GeneratedAnswerPanel({
             aria-pressed={state.disliked}
             className={`rounded-md px-2 py-1 transition-colors ${
               state.disliked
-                ? "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200"
-                : "hover:bg-surface-overlay dark:hover:bg-zinc-800"
+                ? "bg-rose-100 text-rose-800"
+                : "hover:bg-surface-overlay"
             }`}
           >
             👎
           </button>
           {state.feedbackSubmitted && (
-            <span className="ml-1 text-emerald-700 dark:text-emerald-300">Thanks!</span>
+            <span className="ml-1 text-emerald-700">Thanks!</span>
           )}
         </footer>
       )}
@@ -501,7 +516,15 @@ function SearchBoxWithSuggestions({
   );
 
   const suggestions = state.suggestions;
-  const showList = isOpen && suggestions.length > 0;
+  const { isLoadingSuggestions } = state;
+  const showSuggestionRows = isOpen && suggestions.length > 0;
+  const showLoadingRow = isOpen && isLoadingSuggestions && suggestions.length === 0;
+  const showEmptyHint =
+    isOpen &&
+    !isLoadingSuggestions &&
+    suggestions.length === 0 &&
+    state.value.trim().length >= 2;
+  const showListPanel = showSuggestionRows || showLoadingRow || showEmptyHint;
   const effectiveActiveIndex =
     activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
 
@@ -511,18 +534,25 @@ function SearchBoxWithSuggestions({
         type="search"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={showList}
-        aria-controls={listboxId}
+        aria-expanded={showListPanel}
+        aria-controls={showListPanel ? listboxId : undefined}
         aria-activedescendant={
           effectiveActiveIndex >= 0 ? `${listboxId}-${effectiveActiveIndex}` : undefined
         }
         autoComplete="off"
         value={state.value}
         onChange={(e) => {
-          searchBox.updateText(e.target.value);
+          const next = e.target.value;
+          searchBox.updateText(next);
+          setIsOpen(true);
+          searchBox.showSuggestions();
           setActiveIndex(-1);
         }}
         onFocus={() => {
+          if (blurTimerRef.current !== undefined) {
+            window.clearTimeout(blurTimerRef.current);
+            blurTimerRef.current = undefined;
+          }
           setIsOpen(true);
           searchBox.showSuggestions();
         }}
@@ -540,7 +570,7 @@ function SearchBoxWithSuggestions({
             e.preventDefault();
             setActiveIndex((i) => Math.max(i - 1, -1));
           } else if (e.key === "Enter") {
-            if (showList && effectiveActiveIndex >= 0) {
+            if (showSuggestionRows && effectiveActiveIndex >= 0) {
               e.preventDefault();
               searchBox.selectSuggestion(suggestions[effectiveActiveIndex].rawValue);
               setIsOpen(false);
@@ -554,12 +584,24 @@ function SearchBoxWithSuggestions({
         className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 shadow-sm outline-none ring-sky-500/25 focus:border-sky-500 focus:ring-4"
         aria-label="Search"
       />
-      {showList && (
+      {showListPanel && (
         <ul
           id={listboxId}
-          role="listbox"
+          role={showSuggestionRows ? "listbox" : "presentation"}
+          aria-busy={showLoadingRow ? true : undefined}
           className="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-md border border-zinc-300 bg-white py-1 shadow-lg"
         >
+          {showLoadingRow && (
+            <li className="px-3 py-2 text-sm text-zinc-500" role="status">
+              Loading suggestions…
+            </li>
+          )}
+          {showEmptyHint && (
+            <li className="px-3 py-2 text-xs leading-relaxed text-zinc-500" role="note">
+              No query suggestions yet. The Coveo Query Suggestions model often returns nothing while
+              status is Limited, until enough search analytics have been ingested.
+            </li>
+          )}
           {suggestions.map((sug, idx) => (
             <li
               id={`${listboxId}-${idx}`}
@@ -599,6 +641,11 @@ function SearchInterfaceConfigured() {
   const genFacetState = useCoveoController(controllers.generationFacet);
   const abilityFacetState = useCoveoController(controllers.abilityFacet);
   const bstFacetState = useCoveoController(controllers.bstFacet);
+  const catchRateFacetState = useCoveoController(controllers.catchRateFacet);
+  const releaseFacetState = useCoveoController(controllers.releaseFacet);
+  const growthRateFacetState = useCoveoController(controllers.growthRateFacet);
+  const speciesFacetState = useCoveoController(controllers.speciesFacet);
+  const evYieldFacetState = useCoveoController(controllers.evYieldFacet);
   const generatedAnswerState = useCoveoController(controllers.generatedAnswer);
 
   const hasGeneratedAnswer =
@@ -618,7 +665,7 @@ function SearchInterfaceConfigured() {
 
   const filterPanel = (
     <div
-      className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-4"
+      className="grid items-start gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3"
       data-region="product-filters"
       aria-label="Product filters"
     >
@@ -670,12 +717,8 @@ function SearchInterfaceConfigured() {
       >
         {!resultState.isLoading && abilityFacetState.values.length === 0 && (
           <li className="product-filter__option px-1 py-1 text-xs leading-relaxed text-zinc-500">
-            No ability values from Coveo yet. In Admin → Content → Fields, open{" "}
-            <code className="rounded bg-zinc-100 px-1">
-              pokemonability
-            </code>{" "}
-            and confirm Facet is enabled (and Multi-value facet if each species has
-            multiple abilities). Run a source rebuild, then hard-refresh this page.
+            No ability facet values yet — confirm <code className="rounded bg-zinc-100 px-1">pokemonability</code> is
+            facetable in Coveo and that the YAML push completed, then hard-refresh.
           </li>
         )}
         {abilityFacetState.values.map((v) => (
@@ -723,6 +766,116 @@ function SearchInterfaceConfigured() {
           );
         })}
       </ProductFacetFilterSection>
+
+      <ProductFacetFilterSection
+        productFilterId={PRODUCT_FILTER_IDS.pokemonCatchRate}
+        heading="Catch rate (higher = easier)"
+        open={openFacetId === PRODUCT_FILTER_IDS.pokemonCatchRate}
+        onOpenChange={(next) =>
+          setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonCatchRate : null)
+        }
+      >
+        {!resultState.isLoading &&
+          catchRateFacetState.values.length > 0 &&
+          catchRateFacetState.values.every((v) => v.numberOfResults === 0) && (
+            <li className="product-filter__option px-1 py-1 text-xs leading-relaxed text-zinc-500">
+              No catch-rate facet data yet. In Admin → Content → Fields, confirm{" "}
+              <code className="rounded bg-zinc-100 px-1">pokemoncatchrate</code> is numeric
+              with <strong>Facet = Yes</strong>, then re-push or rebuild the source.
+            </li>
+          )}
+        {catchRateFacetState.values.map((v) => {
+          const tier = catchRateTierForRange(v.start, v.end);
+          const label = tier
+            ? `${tier.label} (${tier.suffix})`
+            : `${v.start}–${v.end}`;
+          return (
+            <ProductFacetOptionRow
+              key={`cr-${v.start}-${v.end}`}
+              optionValue={label}
+              resultCount={v.numberOfResults}
+              selected={v.state === "selected"}
+              onToggle={() => controllers.catchRateFacet.toggleSelect(v)}
+            />
+          );
+        })}
+      </ProductFacetFilterSection>
+
+      <ProductFacetFilterSection
+        productFilterId={PRODUCT_FILTER_IDS.pokemonRelease}
+        heading="Game release"
+        open={openFacetId === PRODUCT_FILTER_IDS.pokemonRelease}
+        onOpenChange={(next) =>
+          setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonRelease : null)
+        }
+      >
+        {releaseFacetState.values.map((v) => (
+          <ProductFacetOptionRow
+            key={v.value}
+            optionValue={formatReleaseLabel(v.value)}
+            resultCount={v.numberOfResults}
+            selected={v.state === "selected"}
+            onToggle={() => controllers.releaseFacet.toggleSelect(v)}
+          />
+        ))}
+      </ProductFacetFilterSection>
+
+      <ProductFacetFilterSection
+        productFilterId={PRODUCT_FILTER_IDS.pokemonSpecies}
+        heading="Species category"
+        open={openFacetId === PRODUCT_FILTER_IDS.pokemonSpecies}
+        onOpenChange={(next) =>
+          setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonSpecies : null)
+        }
+      >
+        {speciesFacetState.values.map((v) => (
+          <ProductFacetOptionRow
+            key={v.value}
+            optionValue={v.value}
+            resultCount={v.numberOfResults}
+            selected={v.state === "selected"}
+            onToggle={() => controllers.speciesFacet.toggleSelect(v)}
+          />
+        ))}
+      </ProductFacetFilterSection>
+
+      <ProductFacetFilterSection
+        productFilterId={PRODUCT_FILTER_IDS.pokemonGrowthRate}
+        heading="Growth rate"
+        open={openFacetId === PRODUCT_FILTER_IDS.pokemonGrowthRate}
+        onOpenChange={(next) =>
+          setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonGrowthRate : null)
+        }
+      >
+        {growthRateFacetState.values.map((v) => (
+          <ProductFacetOptionRow
+            key={v.value}
+            optionValue={formatGrowthRateLabel(v.value)}
+            resultCount={v.numberOfResults}
+            selected={v.state === "selected"}
+            onToggle={() => controllers.growthRateFacet.toggleSelect(v)}
+          />
+        ))}
+      </ProductFacetFilterSection>
+
+      <ProductFacetFilterSection
+        productFilterId={PRODUCT_FILTER_IDS.pokemonEvYield}
+        heading="EV yield"
+        open={openFacetId === PRODUCT_FILTER_IDS.pokemonEvYield}
+        onOpenChange={(next) =>
+          setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonEvYield : null)
+        }
+      >
+        {evYieldFacetState.values.map((v) => (
+          <ProductFacetOptionRow
+            key={v.value}
+            optionValue={formatEvYieldStatLabel(v.value)}
+            resultCount={v.numberOfResults}
+            selected={v.state === "selected"}
+            onToggle={() => controllers.evYieldFacet.toggleSelect(v)}
+          />
+        ))}
+      </ProductFacetFilterSection>
     </div>
   );
 
@@ -745,8 +898,12 @@ function SearchInterfaceConfigured() {
             : `${resultState.results.length} result${resultState.results.length === 1 ? "" : "s"}`}
       </p>
       <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 lg:grid-cols-4">
-        {resultState.results.map((result) => (
-          <PokemonCard key={result.uniqueId} result={result} />
+        {resultState.results.map((result, index) => (
+          <PokemonCard
+            key={result.uniqueId}
+            result={result}
+            imagePriority={index < 8}
+          />
         ))}
       </div>
     </div>

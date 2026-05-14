@@ -65,7 +65,7 @@ export function SidePanel({
             aria-expanded={isOpen}
             aria-controls={panelId}
             onClick={() => setOpen(!isOpen)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm outline-none ring-sky-500/30 transition-colors hover:bg-zinc-50 dark:border-zinc-200 dark:!bg-white dark:text-zinc-700 dark:hover:bg-zinc-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm outline-none ring-sky-500/30 transition-colors hover:bg-zinc-50"
           >
             <svg
               viewBox="0 0 24 24"
@@ -139,11 +139,11 @@ function PanelShell({
 }) {
   return (
     <aside
-      className="flex flex-col gap-4 rounded-md border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-200 dark:!bg-white"
+      className="flex flex-col gap-4 rounded-md border border-zinc-200 bg-white p-4 shadow-sm"
       data-region="side-panel"
     >
       {title && (
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
           {title}
         </h2>
       )}

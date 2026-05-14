@@ -14,5 +14,10 @@ uploads/
 Thumbs.db
 *.log
 
-# Dependencies (any package under the repo, e.g. web/, tools/seed-ml/)
+# Dependencies (any package under the repo, e.g. web/)
 node_modules/
+
+# Optional local-only tooling (not published — avoids shipping Playwright/Push automation;
+# clonees can recreate with their own scripts; secrets stay in ignored .env files only)
+tools/seed-ml/
+tools/push-yaml/

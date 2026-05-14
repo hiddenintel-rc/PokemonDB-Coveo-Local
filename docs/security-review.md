@@ -2,7 +2,7 @@
 
 **Scope:** Next.js app under `web/` as deployed to Vercel (and local `npm run dev`). Coveo Cloud org configuration is out of scope for code review but referenced where credentials meet the platform.
 
-**Last reviewed:** 2026-05-12 (CSP + `next/image` + middleware pass).
+**Last reviewed:** 2026-05-13 (documentation + code pass: network surfaces, secrets hygiene, CSP proxy naming).
 
 ---
 
@@ -22,17 +22,18 @@ There is **no application-owned API backend** under `web/` today:
 |---------|----------|
 | `app/api/**/route.ts` (Route Handlers) | **No** |
 | `"use server"` / Server Actions | **No** |
-| **`src/middleware.ts`** | **Yes** — sets **Content-Security-Policy** with a per-request nonce and forwards **`x-nonce`** to the root layout for Next.js CSP compatibility (not business-logic APIs). |
+| **`src/proxy.ts`** | **Yes** — Next.js **16+** Edge convention (replaces root `middleware.ts`): **Content-Security-Policy** with a per-request nonce and **`x-nonce`** forwarded to the root layout (not business-logic APIs). |
 
 What **does** run on the server (Vercel / Node):
 
 - **Next.js** serves HTML, RSC payloads, and static chunks for App Router routes.
 - **`next.config.ts`** applies [HTTP security headers](./design-decisions.md) (**DD-14**) to **all** responses (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-DNS-Prefetch-Control`).
-- **Middleware** adds **`Content-Security-Policy`** on matched document requests (see **DD-14**).
 
 All **Coveo Search API** calls (`@coveo/headless` engine + `fetch-pokemon-by-slug.ts`) execute **in the browser** with the Bearer token from `NEXT_PUBLIC_COVEO_API_KEY`.
 
-So: **server-side security** here means **Next config + middleware CSP + absence of accidental server secrets + safe client patterns**, not a separate REST backend.
+So: **server-side security** here means **Next config + proxy CSP + absence of accidental server secrets + safe client patterns**, not a separate REST backend.
+
+**Network / sensitive data (re-audit):** The Anonymous Search key is sent only on Coveo **Search** (`…/rest/search/v2` and org-specific hosts Headless chooses) and **Usage Analytics** / ML traffic allowed by CSP — same as documented in §1. There is **no** app `console.*` logging of env or tokens under `web/src/`. `preprocessRequest` in `search-instance.ts` mutates JSON bodies (source `cq`, wildcard `q`) but does not log them. **Push API** credentials for any local Coveo Push CLI stay in a **gitignored** `.env` (never commit). Root `.gitignore` pattern `.env` matches env files under ignored tool paths.
 
 ---
 
@@ -40,12 +41,12 @@ So: **server-side security** here means **Next config + middleware CSP + absence
 
 | Topic | Evidence |
 |-------|----------|
-| **Secrets in git** | `web/.gitignore` ignores `.env` / `.env.local`; `web/.env.example` has placeholders only. |
+| **Secrets in git** | `web/.gitignore` ignores `.env` / `.env.local`; repo root `.gitignore` ignores `.env` anywhere and **`tools/seed-ml/`** + **`tools/push-yaml/`** whole trees; `web/.env.example` has placeholders only. |
 | **XSS via HTML injection** | No `dangerouslySetInnerHTML` in components; RGA answer is rendered as **plain text** (see comment in `SearchInterface.tsx`). |
 | **Tabnabbing / referrer leak** | `target="_blank"` links use `rel="noreferrer"` (`SearchInterface.tsx`, `PokemonDetailView.tsx`). |
 | **Detail-route query injection** | `normalizeSlug()` restricts slugs to `^[a-z0-9-]+$`; invalid slugs short-circuit before building Coveo `aq` (`fetch-pokemon-by-slug.ts`). |
 | **Clickjacking / MIME sniffing** | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` (`next.config.ts`). |
-| **CSP (nonce-based)** | `src/middleware.ts` sets policy; `app/layout.tsx` passes **`nonce`** to `<html>`; stat bars use **SVG** widths (no inline `style`). **`connect-src`** includes `https://*.cloud.coveo.com`, **`wss://*.cloud.coveo.com`**, explicit `analytics*` / `platform*` / **AU** analytics, and **`static.cloud.coveo.com`** so **legacy UA** (search, QS, facets, `documentClick` / ART, RGA / genqa events) and any **WebSocket** streaming are not blocked. |
+| **CSP (nonce-based)** | `src/proxy.ts` sets policy; `app/layout.tsx` passes **`nonce`** to `<html>`; stat bars use **SVG** widths (no inline `style`). **`connect-src`** includes `https://*.cloud.coveo.com`, **`wss://*.cloud.coveo.com`**, explicit `analytics*` / `platform*` / **AU** analytics, and **`static.cloud.coveo.com`** so **legacy UA** (search, QS, facets, `documentClick` / ART, RGA / genqa events) and any **WebSocket** streaming are not blocked. |
 | **Image surface** | **`PokemonIndexedImage`** + **`next/image`** + **`images.remotePatterns`** — only allowlisted HTTPS hosts; unknown URLs → placeholder (no raw `<img>` fallback to random hosts). |
 | **Dependency footprint** | Minimal set: `next`, `react`, `@coveo/headless`, `tailwind` toolchain. |
 
@@ -58,7 +59,7 @@ So: **server-side security** here means **Next config + middleware CSP + absence
 | **Public Anonymous Search key** | Quota abuse, scraping at search API | Acceptable for public demo **only** if key is scoped to search on public sources; mitigate with **search tokens** (**DD-3**). |
 | **New artwork hostnames** | Image placeholder until config updated | If Content Browser shows `pictureuri` on a host not under pokemondb / `*.cloud.coveo.com`, add it to **`PokemonIndexedImage`**, **`next.config` `remotePatterns`**, and CSP **`img-src`** together. |
 | **Dependency advisories** | Transitive issues (e.g. build-time tooling) | Run `npm audit` in `web/` periodically; avoid `npm audit fix --force` without reading Next.js compatibility (**DD-14**). |
-| **Next.js middleware deprecation** | Future upgrade friction | Next **16.2** may warn about **`middleware` → `proxy`** — track [Next.js release notes](https://github.com/vercel/next.js/releases) when upgrading. |
+| **Next.js proxy convention** | Naming clarity | Next **16.2** renamed **`middleware.ts`** to **`proxy.ts`** (same Edge behavior). This repo uses **`src/proxy.ts`**. |
 
 ---
 
@@ -72,7 +73,7 @@ So: **server-side security** here means **Next config + middleware CSP + absence
 
 ## 6. When you add a real backend
 
-If you introduce Route Handlers, middleware, or an external API:
+If you introduce Route Handlers, Edge proxy logic, or an external API:
 
 - **Never** prefix server-only secrets with `NEXT_PUBLIC_`.
 - Prefer **short-lived search tokens** over long-lived API keys in the browser.

@@ -17,6 +17,11 @@ import {
   formatNationalDex,
   nationalDexFromRaw,
 } from "@/lib/nationalDex";
+import {
+  formatEvYieldStatLabel,
+  formatGrowthRateLabel,
+  formatReleaseLabel,
+} from "@/lib/pokemonFacetLabels";
 
 /* ── View state ────────────────────────────────────────────────────────── */
 
@@ -50,25 +55,63 @@ function rawNumber(raw: Record<string, unknown>, key: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function rawString(raw: Record<string, unknown>, key: string): string | null {
+  const v = raw[key];
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function bstTierLabel(bst: number): string | undefined {
   return BST_TIERS.find((t) => bst >= t.start && bst < t.end)?.label;
+}
+
+function formatEvYieldList(raw: Record<string, unknown>): string | null {
+  const v = raw.pokemonevyield;
+  if (v == null) return null;
+  const list = Array.isArray(v) ? v.map(String) : [String(v)];
+  const friendly = list
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .map((s) => formatEvYieldStatLabel(s));
+  return friendly.length > 0 ? friendly.join(", ") : null;
+}
+
+/**
+ * Render a metric height (0.7 → "0.7 m") or weight (6.9 → "6.9 kg"). The
+ * underlying Coveo fields are `Decimal`, so values arrive as JS numbers; we
+ * trim trailing zeros but keep at least one decimal place so "0.7" doesn't
+ * become "0" (visual rounding loses a meaningful order of magnitude).
+ */
+function formatMetricMeasurement(value: number | null, unit: "m" | "kg"): string | null {
+  if (value == null) return null;
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded.toFixed(1)} ${unit}`;
 }
 
 /** Same centered “sheet” and header rhythm as `SearchInterfaceConfigured`. */
 function PokedexDetailChrome({
   title,
   metaLine,
+  /**
+   * Optional secondary heading rendered below the H1 — used for Pokémon that
+   * only have non-default canonical forms (e.g. Deoxys → "Normal Forme",
+   * Giratina → "Altered Forme"). Sourced from the YAML push's `pokemonform`
+   * field via `transform.ts → resolveCanonicalForm`.
+   */
+  formSubtitle,
   children,
 }: {
   title: string;
   metaLine?: ReactNode;
+  formSubtitle?: string;
   children: ReactNode;
 }) {
   return (
     <AppShell
       maxWidth="full"
       spacing="compact"
-      className="max-w-[42rem] bg-white/95 lg:max-w-6xl dark:bg-white/95"
+      className="max-w-[42rem] bg-white/95 lg:max-w-6xl"
     >
       <div className="flex flex-col gap-5">
         <nav>
@@ -86,6 +129,9 @@ function PokedexDetailChrome({
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
             {title}
           </h1>
+          {formSubtitle && (
+            <p className="text-sm font-medium text-zinc-600">{formSubtitle}</p>
+          )}
         </header>
         {children}
       </div>
@@ -113,10 +159,8 @@ function StatRow({ label, value }: { label: string; value: number }) {
 
   return (
     <div className="grid grid-cols-[4.5rem_2.5rem_1fr] items-center gap-2">
-      <span className="text-right text-xs text-zinc-500 dark:text-zinc-500">
-        {label}
-      </span>
-      <span className="text-right text-sm tabular-nums font-medium text-zinc-950 dark:text-zinc-950">
+      <span className="text-right text-xs text-zinc-500">{label}</span>
+      <span className="text-right text-sm tabular-nums font-medium text-zinc-950">
         {value}
       </span>
       <div className="h-2 w-full overflow-hidden rounded-full">
@@ -151,15 +195,15 @@ function BaseStatsPanel({ raw }: { raw: Record<string, unknown> }) {
         value != null ? <StatRow key={label} label={label} value={value} /> : null,
       )}
       {bst != null && (
-        <div className="mt-1 grid grid-cols-[4.5rem_auto_1fr] items-center gap-2 border-t border-zinc-200 pt-1.5 dark:border-zinc-200">
-          <span className="text-right text-xs font-semibold text-zinc-600 dark:text-zinc-600">
+        <div className="mt-1 grid grid-cols-[4.5rem_auto_1fr] items-center gap-2 border-t border-zinc-200 pt-1.5">
+          <span className="text-right text-xs font-semibold text-zinc-600">
             Total
           </span>
-          <span className="text-sm font-semibold tabular-nums text-zinc-950 dark:text-zinc-950">
+          <span className="text-sm font-semibold tabular-nums text-zinc-950">
             {bst}
           </span>
           {tier && (
-            <span className="ml-1 inline-flex w-fit items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-100 dark:text-sky-800">
+            <span className="ml-1 inline-flex w-fit items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
               {tier}
             </span>
           )}
@@ -175,7 +219,7 @@ function BackToSearchLink() {
   return (
     <Link
       href="/"
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-700 outline-none hover:text-sky-900 focus-visible:ring-4 focus-visible:ring-sky-500/30 dark:text-sky-700 dark:hover:text-sky-900"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-700 outline-none hover:text-sky-900 focus-visible:ring-4 focus-visible:ring-sky-500/30"
     >
       <svg
         viewBox="0 0 24 24"
@@ -196,7 +240,7 @@ function BackToSearchLink() {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-200 dark:bg-zinc-50 dark:text-zinc-800">
+    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800">
       {children}
     </span>
   );
@@ -206,7 +250,7 @@ function BadgeList({ label, values }: { label: string; values: string[] }) {
   if (values.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         {label}
       </h3>
       <div className="flex flex-wrap gap-1.5">
@@ -222,10 +266,35 @@ function TypesSection({ types }: { types: string[] }) {
   if (types.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Types
       </h3>
       <PokemonTypePillRow types={types} className="justify-start" />
+    </div>
+  );
+}
+
+/**
+ * Two-column key/value list for the v2 fields added by the YAML push source
+ * (height/weight/catch rate/growth rate/release/EV yield). Hides itself when
+ * none of the fields are populated, so legacy Web-source documents continue
+ * to render without an empty pane.
+ */
+function ProfileSection({ rows }: { rows: Array<{ label: string; value: string }> }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Profile
+      </h3>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+        {rows.map(({ label, value }) => (
+          <div key={label} className="contents">
+            <dt className="text-zinc-500">{label}</dt>
+            <dd className="font-medium text-zinc-900">{value}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -239,11 +308,11 @@ function PokemonDetailSkeleton() {
         <Card
           size="lg"
           region="pokemon-detail-skeleton"
-          className="border-zinc-200 bg-white shadow-sm dark:border-zinc-200 dark:!bg-white"
+          className="border-zinc-200 bg-white shadow-sm"
         >
           <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
-            <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-100">
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-200 to-zinc-100 dark:from-zinc-200 dark:to-zinc-100" />
+            <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-md bg-zinc-100">
+              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-200 to-zinc-100" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg
                   className="size-8 animate-spin text-sky-600"
@@ -263,11 +332,11 @@ function PokemonDetailSkeleton() {
               </div>
             </div>
             <div className="flex-1 space-y-4">
-              <div className="h-4 w-48 animate-pulse rounded bg-zinc-100 dark:bg-zinc-100" />
-              <div className="h-4 w-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-100" />
+              <div className="h-4 w-48 animate-pulse rounded bg-zinc-100" />
+              <div className="h-4 w-32 animate-pulse rounded bg-zinc-100" />
               <div className="flex gap-1.5">
-                <div className="h-6 w-16 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-100" />
-                <div className="h-6 w-20 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-100" />
+                <div className="h-6 w-16 animate-pulse rounded-full bg-zinc-100" />
+                <div className="h-6 w-20 animate-pulse rounded-full bg-zinc-100" />
               </div>
             </div>
           </div>
@@ -275,12 +344,12 @@ function PokemonDetailSkeleton() {
         <Card
           size="lg"
           region="pokemon-stats-skeleton"
-          className="border-zinc-200 bg-zinc-50 shadow-sm dark:border-zinc-200 dark:!bg-zinc-50"
+          className="border-zinc-200 bg-zinc-50 shadow-sm"
         >
-          <div className="mb-4 h-6 w-24 animate-pulse rounded bg-zinc-200/80 dark:bg-zinc-200/80" />
+          <div className="mb-4 h-6 w-24 animate-pulse rounded bg-zinc-200/80" />
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-4 animate-pulse rounded bg-zinc-200/70 dark:bg-zinc-200/70" />
+              <div key={i} className="h-4 animate-pulse rounded bg-zinc-200/70" />
             ))}
           </div>
         </Card>
@@ -297,19 +366,19 @@ function PokemonNotFound({ slug }: { slug: string }) {
       <Card
         size="lg"
         region="pokemon-not-found"
-        className="border-zinc-200 bg-white text-center shadow-sm dark:border-zinc-200 dark:!bg-white"
+        className="border-zinc-200 bg-white text-center shadow-sm"
       >
-          <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-950">
+          <h2 className="text-lg font-semibold text-zinc-950">
             No matching species
           </h2>
-          <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-600">
+          <p className="mt-3 text-sm text-zinc-600">
             No indexed Pokémon matched the slug{" "}
-            <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-800 dark:bg-zinc-100 dark:text-zinc-800">
+            <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-800">
               {slug}
             </code>
             .
           </p>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">
+          <p className="mt-2 text-sm text-zinc-500">
             Try a different name from the search results.
           </p>
           <div className="mt-6">
@@ -328,7 +397,7 @@ function PokemonNotFound({ slug }: { slug: string }) {
 function PokemonDetailError({ message }: { message: string }) {
   return (
     <PokedexDetailChrome title="Could not load details">
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-50">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950 shadow-sm">
           <p className="font-medium">Could not load Pokémon details</p>
           <p className="mt-2 text-sm">{message}</p>
       </div>
@@ -355,13 +424,32 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
     nationalDex != null ? formatNationalDex(nationalDex) : null;
   const bst = rawNumber(raw, "pokemonbst");
 
-  const hasMetaLine = nationalDexLabel != null || bst != null;
+  // v2 fields from the YAML push source. Each is optional — older Web-source
+  // documents (or future species missing a particular field) just skip the row.
+  const species = rawString(raw, "pokemonspecies");
+  const formName = rawString(raw, "pokemonform");
+  const release = rawString(raw, "pokemonrelease");
+  const growthRate = rawString(raw, "pokemongrowthrate");
+  const catchRate = rawNumber(raw, "pokemoncatchrate");
+  const heightLabel = formatMetricMeasurement(rawNumber(raw, "pokemonheight"), "m");
+  const weightLabel = formatMetricMeasurement(rawNumber(raw, "pokemonweight"), "kg");
+  const evYieldLabel = formatEvYieldList(raw);
+
+  const hasMetaLine = nationalDexLabel != null || species != null || bst != null;
   const metaLine = hasMetaLine ? (
     <>
       {nationalDexLabel != null && (
         <span className="text-zinc-600">{nationalDexLabel}</span>
       )}
-      {nationalDexLabel != null && bst != null && (
+      {nationalDexLabel != null && species && (
+        <span className="mx-1.5 text-zinc-300" aria-hidden>
+          ·
+        </span>
+      )}
+      {species && (
+        <span className="text-zinc-600">{species} Pokémon</span>
+      )}
+      {(nationalDexLabel != null || species) && bst != null && (
         <span className="mx-1.5 text-zinc-300" aria-hidden>
           ·
         </span>
@@ -377,6 +465,27 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
     </>
   ) : undefined;
 
+  const profileRows: Array<{ label: string; value: string }> = [];
+  if (heightLabel && weightLabel) {
+    profileRows.push({ label: "Size", value: `${heightLabel} · ${weightLabel}` });
+  } else if (heightLabel) {
+    profileRows.push({ label: "Height", value: heightLabel });
+  } else if (weightLabel) {
+    profileRows.push({ label: "Weight", value: weightLabel });
+  }
+  if (catchRate != null) {
+    profileRows.push({ label: "Catch rate", value: String(catchRate) });
+  }
+  if (growthRate) {
+    profileRows.push({ label: "Growth rate", value: formatGrowthRateLabel(growthRate) });
+  }
+  if (release) {
+    profileRows.push({ label: "Debut", value: formatReleaseLabel(release) });
+  }
+  if (evYieldLabel) {
+    profileRows.push({ label: "EV yield", value: evYieldLabel });
+  }
+
   const hasStats =
     rawNumber(raw, "pokemonbst") != null ||
     BASE_STAT_FIELDS.some(({ key }) => rawNumber(raw, key) != null);
@@ -386,20 +495,20 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
       variant="default"
       size="lg"
       region="pokemon-detail"
-      className="border-zinc-200 bg-white shadow-sm dark:border-zinc-200 dark:!bg-white"
+      className="border-zinc-200 bg-white shadow-sm"
     >
       <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-start">
-        <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-100">
+        <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-md bg-zinc-100">
           {picture ? (
             <PokemonIndexedImage
               src={picture}
               sizes="192px"
-              boxClassName="h-48 w-48 rounded-md bg-zinc-100 dark:bg-zinc-100"
+              boxClassName="h-48 w-48 rounded-md bg-zinc-100"
               imageClassName="object-contain p-2"
               priority
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-zinc-400 dark:text-zinc-400">
+            <div className="flex h-full items-center justify-center text-xs text-zinc-400">
               No image
             </div>
           )}
@@ -409,18 +518,19 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
           <TypesSection types={types} />
           {generation && <BadgeList label="Generation" values={[generation]} />}
           <BadgeList label="Abilities" values={abilities} />
+          <ProfileSection rows={profileRows} />
         </div>
       </div>
 
-      <footer className="mt-8 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-200">
-        <p className="text-xs text-zinc-500 dark:text-zinc-500">
-          Indexed by Coveo from pokemondb.net
+      <footer className="mt-8 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-zinc-500">
+          Indexed in Coveo from YAML reference data (pokemondb.net species URLs)
         </p>
         <a
           href={hit.clickUri}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 outline-none hover:text-sky-900 focus-visible:ring-4 focus-visible:ring-sky-500/30 dark:text-sky-700 dark:hover:text-sky-900"
+          className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 outline-none hover:text-sky-900 focus-visible:ring-4 focus-visible:ring-sky-500/30"
         >
           View on pokemondb.net
           <svg
@@ -447,9 +557,9 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
         variant="default"
         size="lg"
         region="pokemon-stats"
-        className="border-zinc-200 bg-zinc-50 shadow-sm dark:border-zinc-200 dark:!bg-zinc-50"
+        className="border-zinc-200 bg-zinc-50 shadow-sm"
       >
-        <h2 className="mb-4 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-900">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight text-zinc-900">
           Stats
         </h2>
         <BaseStatsPanel raw={raw} />
@@ -457,7 +567,11 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
     ) : null;
 
   return (
-    <PokedexDetailChrome title={displayTitle} metaLine={metaLine}>
+    <PokedexDetailChrome
+      title={displayTitle}
+      metaLine={metaLine}
+      formSubtitle={formName ?? undefined}
+    >
       <div className="flex flex-col gap-4">
         {mainCard}
         {statsCard}

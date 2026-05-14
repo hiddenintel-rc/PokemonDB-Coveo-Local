@@ -206,3 +206,9 @@ The default pipeline holds (all configured in Admin → Search → Query Pipelin
 - **Machine learning associations** — `pokemon_QS` (Query Suggestions), `pokemon_RGA` (Generative Answering), `pokemon_ART` (Automatic Relevance Tuning)
 
 ML model creation + association procedure: `docs/coveo-admin-playbook.md` §3.
+
+---
+
+## YAML Push companion (Coveo Admin + Push API)
+
+Species documents can be **ingested via Coveo Push** (your own scripts or third-party pipeline). Typical **extra** fields not produced by the Web scrape alone include: `pokemonspecies`, `pokemonrelease`, `pokemongrowthrate`, `pokemoncatchrate`, `pokemonheight`, `pokemonweight`, `pokemonform`, `pokemonevyield`. These must exist in **Admin → Fields** with types matching your push mapping; facet flags must match how the app uses them (`search-instance.ts`). The running app **filters searches** to the Push source name configured in code so results align with the detail page.

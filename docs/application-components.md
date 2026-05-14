@@ -23,21 +23,21 @@ All **Pokémon facts** shown on `/` and `/pokemon/[slug]` come from **Coveo**: H
 web/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout — async; passes CSP `nonce` from middleware to `<html>`
+│   │   ├── layout.tsx          # Root layout — async; passes CSP `nonce` from proxy to `<html>`
 │   │   ├── page.tsx            # Home route — renders SearchInterface shell
 │   │   ├── pokemon/
 │   │   │   └── [slug]/
 │   │   │       └── page.tsx    # Dynamic detail route — renders PokemonDetailView (key={slug})
 │   │   └── globals.css         # Global styles / Tailwind entry
-│   ├── middleware.ts           # Per-request CSP + `x-nonce` for Next.js script/style nonces
+│   ├── proxy.ts                # Per-request CSP + `x-nonce` for Next.js script/style nonces
 │   ├── coveo/
 │   │   ├── search-instance.ts          # Headless engine + controller singletons
 │   │   └── fetch-pokemon-by-slug.ts    # One-off Coveo Search API fetch (no analytics)
 │   ├── components/
 │   │   ├── layout/
 │   │   │   ├── AppShell.tsx            # Centered max-width page wrapper
-│   │   │   ├── Card.tsx                # Card + CardSection primitives
-│   │   │   └── SidePanel.tsx           # Collapsible panel (detail route uses stacked Stats card instead)
+│   │   │   ├── Card.tsx                # Card primitive (default / type-tinted / flat variants)
+│   │   │   └── SidePanel.tsx           # Unused today; kept as a reusable collapsible right-rail primitive
 │   │   ├── search/
 │   │   │   └── SearchInterface.tsx     # Search UI, facets, results, env gate
 │   │   └── pokemon/
@@ -76,7 +76,7 @@ Marked **`"use client"`**. Two-tier structure:
 
 Facet sidebar wrapper: **`data-region="product-filters"`** (`aria-label="Product filters"`). Styling hook reference comment lives in **`globals.css`**.
 
-## Edge middleware: `middleware.ts`
+## Edge proxy: `proxy.ts`
 
 Runs on **document** requests (matcher skips `/_next/static`, `/_next/image`, `favicon.ico`, and common static file extensions). Sets **`Content-Security-Policy`** with a per-request **nonce** (`script-src` / `style-src`), allowlists **`connect-src`** for Coveo **Search + legacy UA analytics + WebSockets** (`https://*.cloud.coveo.com`, `wss://*.cloud.coveo.com`, explicit `platform*` / `analytics*` / `analytics-au` / `static.cloud.coveo.com`) so **ART**, **QS**, **RGA**, and facet/click signals reach Coveo ML, and **`img-src`** to self, `blob:`/`data:` (for `next/image`), pokemondb, and **`*.cloud.coveo.com`**. Injects **`x-nonce`** on the request so **`app/layout.tsx`** can forward it to **`<html nonce={…}>`** for Next.js–compatible CSP (see Next.js CSP docs).
 
@@ -105,7 +105,7 @@ Marked **`"use client"`**. Four render states driven by a `ViewState` discrimina
 | Export | Responsibility |
 |--------|------------------|
 | **`getSearchEngine()`** | Lazily builds **`buildSearchEngine`** with org ID, access token, and **`searchHub`** from **`NEXT_PUBLIC_COVEO_SEARCH_HUB`** (default **`PokemonSearch`**). |
-| **`getSearchControllers()`** | Builds **`buildSearchBox`** (with **`numberOfSuggestions: 8`** for Coveo Query Suggestions), **`buildResultList`** (with **`fieldsToInclude`** for custom columns—see below), **`buildFacet`** on **`pokemontype`** (25 values), **`pokemongeneration`** (15 values), and **`pokemonability`** (50 values), **`buildNumericFacet`** on **`pokemonbst`** (5 labeled tiers, `generateAutomaticRanges: false`, `currentValues` driven by exported **`BST_TIERS`**), and **`buildGeneratedAnswer`** (with **`fieldsToIncludeInCitations`** mirroring our custom fields) for Coveo RGA. |
+| **`getSearchControllers()`** | Builds **`buildSearchBox`** (with **`numberOfSuggestions: 8`** for Coveo Query Suggestions), **`buildResultList`** (with **`fieldsToInclude`** for custom columns—see `search-instance.ts`), **`buildFacet`** on **`pokemontype`**, **`pokemongeneration`**, **`pokemonability`**, **`pokemonrelease`**, **`pokemongrowthrate`**, **`pokemonspecies`**, and **`pokemonevyield`**, **`buildNumericFacet`** on **`pokemonbst`** (`BST_TIERS`) and **`pokemoncatchrate`** (`CATCH_RATE_TIERS`), and **`buildGeneratedAnswer`** (with **`fieldsToIncludeInCitations`**) for Coveo RGA. |
 | **`BST_TIERS`** / **`bstTierForRange()`** | Exported. `BST_TIERS` is the single source of truth for the BST facet ranges and labels (5 community tiers: Frail / Average / Strong / Very strong / Legendary). `bstTierForRange(start, end)` resolves a `NumericFacetValue` back to its tier so `SearchInterface.tsx` can render the labeled facet row. `BST_TIERS` is also imported by `PokemonDetailView.tsx` to resolve a raw BST integer to its tier label (`.find()` with range semantics). Bucketing is presentation logic — adjust this array, no re-index required. |
 | **`coveoConfigured()`** | `true` only when **`NEXT_PUBLIC_COVEO_ORG_ID`** and **`NEXT_PUBLIC_COVEO_API_KEY`** are both non-empty truesy strings. |
 
