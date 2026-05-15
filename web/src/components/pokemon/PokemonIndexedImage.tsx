@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { isConfiguredSpriteHostUrl } from "@/lib/spriteAsset";
+import { isSpriteAssetUrl } from "@/lib/spriteAsset";
 
 function isIndexedPokemonImageUrl(src: string): boolean {
   try {
@@ -18,7 +18,7 @@ function isIndexedPokemonImageUrl(src: string): boolean {
 }
 
 function isAllowedPokemonImageUrl(src: string): boolean {
-  return isIndexedPokemonImageUrl(src) || isConfiguredSpriteHostUrl(src);
+  return isIndexedPokemonImageUrl(src) || isSpriteAssetUrl(src);
 }
 
 type PokemonIndexedImageProps = {
@@ -33,8 +33,7 @@ type PokemonIndexedImageProps = {
 
 /**
  * Renders artwork from known HTTPS hosts (pokemondb + Coveo `*.cloud.coveo.com`)
- * or from configured sprite bases (`NEXT_PUBLIC_SPRITE_ASSET_BASE_URL` /
- * `NEXT_PUBLIC_SPRITE_FALLBACK_ASSET_BASE_URL`) via `next/image`.
+ * or from the configured sprite base (`NEXT_PUBLIC_SPRITE_ASSET_BASE_URL`) via `next/image`.
  */
 export function PokemonIndexedImage({
   src,
@@ -53,7 +52,7 @@ export function PokemonIndexedImage({
     );
   }
 
-  const sprite = isConfiguredSpriteHostUrl(src);
+  const sprite = isSpriteAssetUrl(src);
 
   return (
     <div className={`relative overflow-hidden ${boxClassName}`}>

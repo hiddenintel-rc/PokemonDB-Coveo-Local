@@ -30,7 +30,7 @@ import {
   formatReleaseLabel,
 } from "@/lib/pokemonFacetLabels";
 import { PokemonSpritePackPanel } from "@/components/pokemon/PokemonSpritePackPanel";
-import { spritePackUiEnabled } from "@/lib/spriteAsset";
+import { spriteAssetBaseUrl } from "@/lib/spriteAsset";
 
 /* ── View state ────────────────────────────────────────────────────────── */
 
@@ -574,7 +574,7 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
           <ProfileSection rows={profileRows} />
         </div>
 
-        {nationalDex != null && spritePackUiEnabled() && (
+        {nationalDex != null && spriteAssetBaseUrl() && (
           <aside
             aria-label="Local sprite assets"
             className="w-full shrink-0 border-t border-zinc-200 pt-6 lg:w-64 lg:border-l lg:border-t-0 lg:pt-0 lg:pl-6 xl:w-72"
