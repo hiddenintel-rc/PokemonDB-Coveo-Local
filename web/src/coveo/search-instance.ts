@@ -17,6 +17,24 @@ import {
 
 let engine: SearchEngine | null = null;
 
+/** Fields passed to RGA citations on both the main search page and the detail-page RGA engine. */
+export const RGA_CITATION_FIELDS_TO_INCLUDE = [
+  "pictureuri",
+  "syspictureuri",
+  "pokemontype",
+  "pokemongeneration",
+  "pokemonability",
+  "pokemonspecies",
+  "pokemonrelease",
+] as const;
+
+/**
+ * Name of the Push source created in Admin → Sources for the YAML-ingested
+ * Pokémon dataset. Used in a `cq` (constant query) filter so the live app
+ * only returns documents from this source — see `preprocessRequest` below.
+ */
+const COVEO_PUSH_SOURCE_NAME = "PokemonDB Reference (YAML)";
+
 /** Single “word” from the search box (letters, digits, hyphen); excludes Coveo operators. */
 const PREFIX_WILDCARD_TOKEN = /^[a-zA-Z][a-zA-Z0-9-]{0,30}$/;
 
@@ -57,6 +75,97 @@ function augmentQueryForPrefixWildcards(raw: string): string {
     .join(" ");
 }
 
+/** Shared Coveo engine configuration (main search + isolated detail RGA engine). */
+export function getSearchEngineConfiguration(): NonNullable<
+  Parameters<typeof buildSearchEngine>[0]["configuration"]
+> {
+  return {
+    organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID ?? "",
+    accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY ?? "",
+    // Headless v3 ships with `analyticsMode: 'next'` (Event Protocol) by default, which Coveo
+    // currently only fully supports for **Commerce** orgs. For Search / Service / Website /
+    // Workplace implementations (this project), Coveo's own v2→v3 guide instructs setting
+    // `analyticsMode: 'legacy'` so events flow through the classic Coveo UA endpoint that
+    // `pokemon_QS`, `pokemon_RGA`, and `pokemon_ART` already consume — and Headless stops
+    // emitting the noisy "this mode is not available for Coveo for Service features" warning.
+    analytics: { analyticsMode: "legacy" },
+    search: {
+      // Coveo Search hub: analytics + query-pipeline routing label (not your Web source name).
+      // If the API key *enforces* a hub, this must match that value (e.g. AdminConsole).
+      // If the key leaves Search hub unset, pick a stable app-specific string (see `.env.example`).
+      searchHub:
+        process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? "PokemonSearch",
+    },
+    preprocessRequest: (request, clientOrigin) => {
+      if (clientOrigin !== "searchApiFetch") return request;
+
+      const req = request as {
+        url?: string;
+        body?: string | Record<string, unknown>;
+        headers?: Record<string, string>;
+      };
+      const url = req.url ?? "";
+      // Query suggestions are a separate endpoint that doesn't accept `cq`
+      // and doesn't need wildcard rewrites — pass them through untouched.
+      if (url.includes("querySuggest")) return request;
+
+      let payload: Record<string, unknown>;
+      if (typeof req.body === "string") {
+        try {
+          payload = JSON.parse(req.body) as Record<string, unknown>;
+        } catch {
+          return request;
+        }
+      } else if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+        payload = { ...(req.body as Record<string, unknown>) };
+      } else {
+        return request;
+      }
+
+      let mutated = false;
+
+      // Constraint #1: scope every search to the YAML Push source. `cq`
+      // (constant query) does not affect relevance ranking and does not
+      // surface as a user-visible facet filter in analytics the same way
+      // explicit facet selections do.
+      if (COVEO_PUSH_SOURCE_NAME) {
+        const sourceFilter = `@source=="${COVEO_PUSH_SOURCE_NAME}"`;
+        const existingCq = typeof payload.cq === "string" ? payload.cq.trim() : "";
+        payload.cq = existingCq ? `(${existingCq}) AND ${sourceFilter}` : sourceFilter;
+        mutated = true;
+      }
+
+      // Constraint #2: prefix-wildcard expansion for short query tokens
+      // (see augmentQueryForPrefixWildcards docs above).
+      const q = payload.q;
+      if (typeof q === "string" && q.trim()) {
+        const newQ = augmentQueryForPrefixWildcards(q);
+        if (newQ !== q) {
+          payload.q = newQ;
+          payload.wildcards = true;
+          mutated = true;
+        }
+      }
+
+      if (!mutated) return request;
+
+      return {
+        ...request,
+        body: JSON.stringify(payload),
+      };
+    },
+  };
+}
+
+export function getSearchEngine(): SearchEngine {
+  if (!engine) {
+    engine = buildSearchEngine({
+      configuration: getSearchEngineConfiguration(),
+    });
+  }
+  return engine;
+}
+
 type SearchControllers = {
   searchBox: SearchBox;
   resultList: ResultList;
@@ -76,17 +185,6 @@ type SearchControllers = {
   evYieldFacet: Facet;
   generatedAnswer: GeneratedAnswer;
 };
-
-/**
- * Name of the Push source created in Admin → Sources for the YAML-ingested
- * Pokémon dataset. Used in a `cq` (constant query) filter so the live app
- * only returns documents from this source — see `preprocessRequest` below.
- *
- * If the source is renamed in Coveo Admin, update this string. You may set this
- * to an empty string only if no other source indexes the same pokemondb.net
- * URIs (otherwise duplicate hits can appear).
- */
-const COVEO_PUSH_SOURCE_NAME = "PokemonDB Reference (YAML)";
 
 /**
  * Community-recognized Base Stat Total tiers.
@@ -143,90 +241,6 @@ export function catchRateTierForRange(
 }
 
 let controllers: SearchControllers | null = null;
-
-export function getSearchEngine(): SearchEngine {
-  if (!engine) {
-    engine = buildSearchEngine({
-      configuration: {
-        organizationId: process.env.NEXT_PUBLIC_COVEO_ORG_ID ?? "",
-        accessToken: process.env.NEXT_PUBLIC_COVEO_API_KEY ?? "",
-        // Headless v3 ships with `analyticsMode: 'next'` (Event Protocol) by default, which Coveo
-        // currently only fully supports for **Commerce** orgs. For Search / Service / Website /
-        // Workplace implementations (this project), Coveo's own v2→v3 guide instructs setting
-        // `analyticsMode: 'legacy'` so events flow through the classic Coveo UA endpoint that
-        // `pokemon_QS`, `pokemon_RGA`, and `pokemon_ART` already consume — and so Headless stops
-        // emitting the noisy "this mode is not available for Coveo for Service features" warning.
-        analytics: { analyticsMode: "legacy" },
-        search: {
-          // Coveo Search hub: analytics + query-pipeline routing label (not your Web source name).
-          // If the API key *enforces* a hub, this must match that value (e.g. AdminConsole).
-          // If the key leaves Search hub unset, pick a stable app-specific string (see `.env.example`).
-          searchHub:
-            process.env.NEXT_PUBLIC_COVEO_SEARCH_HUB ?? "PokemonSearch",
-        },
-        preprocessRequest: (request, clientOrigin) => {
-          if (clientOrigin !== "searchApiFetch") return request;
-
-          const req = request as {
-            url?: string;
-            body?: string | Record<string, unknown>;
-            headers?: Record<string, string>;
-          };
-          const url = req.url ?? "";
-          // Query suggestions are a separate endpoint that doesn't accept `cq`
-          // and doesn't need wildcard rewrites — pass them through untouched.
-          if (url.includes("querySuggest")) return request;
-
-          let payload: Record<string, unknown>;
-          if (typeof req.body === "string") {
-            try {
-              payload = JSON.parse(req.body) as Record<string, unknown>;
-            } catch {
-              return request;
-            }
-          } else if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
-            payload = { ...(req.body as Record<string, unknown>) };
-          } else {
-            return request;
-          }
-
-          let mutated = false;
-
-          // Constraint #1: scope every search to the YAML Push source. `cq`
-          // (constant query) does not affect relevance ranking and does not
-          // surface as a user-visible facet filter in analytics the same way
-          // explicit facet selections do.
-          if (COVEO_PUSH_SOURCE_NAME) {
-            const sourceFilter = `@source=="${COVEO_PUSH_SOURCE_NAME}"`;
-            const existingCq = typeof payload.cq === "string" ? payload.cq.trim() : "";
-            payload.cq = existingCq ? `(${existingCq}) AND ${sourceFilter}` : sourceFilter;
-            mutated = true;
-          }
-
-          // Constraint #2: prefix-wildcard expansion for short query tokens
-          // (see augmentQueryForPrefixWildcards docs above).
-          const q = payload.q;
-          if (typeof q === "string" && q.trim()) {
-            const newQ = augmentQueryForPrefixWildcards(q);
-            if (newQ !== q) {
-              payload.q = newQ;
-              payload.wildcards = true;
-              mutated = true;
-            }
-          }
-
-          if (!mutated) return request;
-
-          return {
-            ...request,
-            body: JSON.stringify(payload),
-          };
-        },
-      },
-    });
-  }
-  return engine;
-}
 
 export function getSearchControllers(): SearchControllers {
   if (!controllers) {
@@ -346,15 +360,7 @@ export function getSearchControllers(): SearchControllers {
       // `fieldsToIncludeInCitations` carries our custom fields onto each citation so the
       // UI can render type / generation / image alongside the cited species name.
       generatedAnswer: buildGeneratedAnswer(e, {
-        fieldsToIncludeInCitations: [
-          "pictureuri",
-          "syspictureuri",
-          "pokemontype",
-          "pokemongeneration",
-          "pokemonability",
-          "pokemonspecies",
-          "pokemonrelease",
-        ],
+        fieldsToIncludeInCitations: [...RGA_CITATION_FIELDS_TO_INCLUDE],
       }) as GeneratedAnswer,
     };
   }

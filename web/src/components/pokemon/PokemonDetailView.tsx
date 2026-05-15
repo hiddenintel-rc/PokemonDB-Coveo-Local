@@ -7,6 +7,13 @@ import {
   normalizeSlug,
   type PokemonDetailHit,
 } from "@/coveo/fetch-pokemon-by-slug";
+import {
+  getDetailGeneratedAnswer,
+  runDetailRgaNlSearch,
+} from "@/coveo/detail-rga-engine";
+import { coveoConfigured } from "@/coveo/search-instance";
+import { GeneratedAnswerPanel } from "@/components/search/GeneratedAnswerPanel";
+import { useCoveoController } from "@/hooks/useCoveoController";
 import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import { PokemonTypePillRow } from "@/components/pokemon/PokemonTypePill";
 import { BST_TIERS } from "@/coveo/search-instance";
@@ -22,6 +29,8 @@ import {
   formatGrowthRateLabel,
   formatReleaseLabel,
 } from "@/lib/pokemonFacetLabels";
+import { PokemonSpritePackPanel } from "@/components/pokemon/PokemonSpritePackPanel";
+import { spriteAssetBaseUrl } from "@/lib/spriteAsset";
 
 /* ── View state ────────────────────────────────────────────────────────── */
 
@@ -60,6 +69,15 @@ function rawString(raw: Record<string, unknown>, key: string): string | null {
   if (typeof v !== "string") return null;
   const trimmed = v.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Coveo keyword `q` for the detail RGA engine — the indexed species title (same
+ * as the card heading). Short name-style queries match the dex reliably; long
+ * prose was more likely to dilute relevance.
+ */
+function pokemonDetailRgaSearchQuery(hit: PokemonDetailHit): string {
+  return cleanIndexedPokemonTitle(hit.title).trim();
 }
 
 function bstTierLabel(bst: number): string | undefined {
@@ -272,6 +290,41 @@ function TypesSection({ types }: { types: string[] }) {
       <PokemonTypePillRow types={types} className="justify-start" />
     </div>
   );
+}
+
+function PokemonDetailRgaBlock({ hit }: { hit: PokemonDetailHit }) {
+  if (!coveoConfigured()) return null;
+
+  const controller = getDetailGeneratedAnswer();
+  const state = useCoveoController(controller);
+  const searchQuery = pokemonDetailRgaSearchQuery(hit);
+
+  /**
+   * Defer `executeSearch` to the next macrotask so React 18 Strict Mode’s
+   * setup → cleanup → setup cycle clears the first timer. Otherwise two searches
+   * fire back-to-back, Coveo aborts the first, and the console shows
+   * `search/executeSearch/rejected` while the RGA panel can flash empty.
+   */
+  useEffect(() => {
+    if (!searchQuery) return;
+    let alive = true;
+    const t = window.setTimeout(() => {
+      if (alive) runDetailRgaNlSearch(searchQuery);
+    }, 0);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [hit.uri, searchQuery]);
+
+  const hasGeneratedAnswer =
+    Boolean(state.answer?.trim()) ||
+    state.isLoading ||
+    state.isStreaming ||
+    Boolean(state.error?.message);
+
+  if (!hasGeneratedAnswer) return null;
+  return <GeneratedAnswerPanel controller={controller} state={state} />;
 }
 
 /**
@@ -497,7 +550,7 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
       region="pokemon-detail"
       className="border-zinc-200 bg-white shadow-sm"
     >
-      <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-start">
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-8">
         <div className="relative h-48 w-48 shrink-0 overflow-hidden rounded-md bg-zinc-100">
           {picture ? (
             <PokemonIndexedImage
@@ -520,6 +573,15 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
           <BadgeList label="Abilities" values={abilities} />
           <ProfileSection rows={profileRows} />
         </div>
+
+        {nationalDex != null && spriteAssetBaseUrl() && (
+          <aside
+            aria-label="Local sprite assets"
+            className="w-full shrink-0 border-t border-zinc-200 pt-6 lg:w-64 lg:border-l lg:border-t-0 lg:pt-0 lg:pl-6 xl:w-72"
+          >
+            <PokemonSpritePackPanel nationalDex={nationalDex} compact />
+          </aside>
+        )}
       </div>
 
       <footer className="mt-8 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -574,6 +636,7 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
     >
       <div className="flex flex-col gap-4">
         {mainCard}
+        <PokemonDetailRgaBlock hit={hit} />
         {statsCard}
       </div>
     </PokedexDetailChrome>

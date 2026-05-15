@@ -21,3 +21,6 @@ node_modules/
 # clonees can recreate with their own scripts; secrets stay in ignored .env files only)
 tools/seed-ml/
 tools/push-yaml/
+
+# Legacy local sprite package path (use committed `tools/local-sprite-server` instead)
+web/pokemon-asset-hosted/

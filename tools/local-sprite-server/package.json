@@ -1,0 +1,12 @@
+{
+  "name": "local-sprite-server",
+  "private": true,
+  "description": "Optional local static host for pokemonDB-master/sprites-master/sprites (not required for Vercel builds)",
+  "type": "module",
+  "scripts": {
+    "serve": "node ./run-serve.mjs"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

@@ -28,8 +28,19 @@ function generateNonce(): string {
  *
  * If the Admin Console shows a different region host after a migration, add it here (or rely on `*.cloud.coveo.com` if it matches).
  */
+function spriteOriginForImgSrc(): string {
+  const raw = process.env.NEXT_PUBLIC_SPRITE_ASSET_BASE_URL?.trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+}
+
 function contentSecurityPolicy(n: string): string {
   const isDev = process.env.NODE_ENV === "development";
+  const spriteOrigin = spriteOriginForImgSrc();
 
   const coveoConnect =
     "https://*.cloud.coveo.com " +
@@ -51,19 +62,26 @@ function contentSecurityPolicy(n: string): string {
     ? `script-src 'self' 'nonce-${n}' 'strict-dynamic' 'unsafe-eval'`
     : `script-src 'self' 'nonce-${n}' 'strict-dynamic'`;
 
+  const imgSrc =
+    "img-src 'self' data: blob: https://img.pokemondb.net https://www.pokemondb.net https://*.cloud.coveo.com" +
+    (spriteOrigin ? ` ${spriteOrigin}` : "");
+
   const directives = [
     "default-src 'self'",
     scriptSrc,
     `style-src 'self' 'nonce-${n}'`,
-    "img-src 'self' data: blob: https://img.pokemondb.net https://www.pokemondb.net https://*.cloud.coveo.com",
+    imgSrc,
     "font-src 'self' data:",
     `connect-src 'self' ${coveoConnect}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
-    "upgrade-insecure-requests",
   ];
+
+  // Dev + optional http://127.0.0.1 sprite host: upgrade-insecure-requests breaks local HTTP images.
+  if (!isDev) directives.push("upgrade-insecure-requests");
+
   return directives.join("; ");
 }
 

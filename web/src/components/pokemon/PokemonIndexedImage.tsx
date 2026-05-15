@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { isSpriteAssetUrl } from "@/lib/spriteAsset";
 
 function isIndexedPokemonImageUrl(src: string): boolean {
   try {
@@ -16,6 +17,10 @@ function isIndexedPokemonImageUrl(src: string): boolean {
   }
 }
 
+function isAllowedPokemonImageUrl(src: string): boolean {
+  return isIndexedPokemonImageUrl(src) || isSpriteAssetUrl(src);
+}
+
 type PokemonIndexedImageProps = {
   src: string;
   /** e.g. `"96px"` for cards, `"192px"` for detail hero */
@@ -27,8 +32,8 @@ type PokemonIndexedImageProps = {
 };
 
 /**
- * Renders artwork from known HTTPS hosts (pokemondb + Coveo `*.cloud.coveo.com`) via `next/image`.
- * Other URLs are rejected (no raw `<img>`) so CSP `img-src` can stay tight.
+ * Renders artwork from known HTTPS hosts (pokemondb + Coveo `*.cloud.coveo.com`)
+ * or from the configured local sprite base (`NEXT_PUBLIC_SPRITE_ASSET_BASE_URL`) via `next/image`.
  */
 export function PokemonIndexedImage({
   src,
@@ -37,7 +42,7 @@ export function PokemonIndexedImage({
   imageClassName,
   priority,
 }: PokemonIndexedImageProps) {
-  if (!isIndexedPokemonImageUrl(src)) {
+  if (!isAllowedPokemonImageUrl(src)) {
     return (
       <div
         className={`flex items-center justify-center text-xs text-zinc-400 ${boxClassName}`}

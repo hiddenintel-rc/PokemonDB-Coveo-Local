@@ -1,5 +1,46 @@
 import type { NextConfig } from "next";
 
+function spriteAssetRemotePattern():
+  | { protocol: "http" | "https"; hostname: string; port?: string; pathname: string }
+  | undefined {
+  const raw = process.env.NEXT_PUBLIC_SPRITE_ASSET_BASE_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return undefined;
+    return {
+      protocol: u.protocol === "https:" ? "https" : "http",
+      hostname: u.hostname,
+      ...(u.port ? { port: u.port } : {}),
+      pathname: "/**",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+const spritePattern = spriteAssetRemotePattern();
+
+/** Default local sprite static host (see `tools/local-sprite-server`). */
+const DEV_SPRITE_REMOTE_PATTERN = {
+  protocol: "http" as const,
+  hostname: "127.0.0.1",
+  port: "8787",
+  pathname: "/**",
+};
+
+function isSameRemotePattern(
+  a: { protocol: string; hostname: string; port?: string; pathname: string },
+  b: typeof DEV_SPRITE_REMOTE_PATTERN,
+): boolean {
+  return (
+    a.protocol === b.protocol &&
+    a.hostname === b.hostname &&
+    (a.port ?? "") === (b.port ?? "") &&
+    a.pathname === b.pathname
+  );
+}
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   env: {
@@ -23,6 +64,16 @@ const nextConfig: NextConfig = {
         hostname: "*.cloud.coveo.com",
         pathname: "/**",
       },
+      // `next.config` is evaluated before `.env.local` is always visible here; hard-code
+      // the usual local sprite port so `next/image` works without a full dev-server restart dance.
+      ...(process.env.NODE_ENV === "development" ? [DEV_SPRITE_REMOTE_PATTERN] : []),
+      ...(spritePattern &&
+      !(
+        process.env.NODE_ENV === "development" &&
+        isSameRemotePattern(spritePattern, DEV_SPRITE_REMOTE_PATTERN)
+      )
+        ? [spritePattern]
+        : []),
     ],
   },
   async headers() {
