@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useState, type JSX } from "react";
 import {
   buildSpritePackUrls,
@@ -11,11 +10,12 @@ import {
 function HostedStillTile({
   label,
   src,
-  sizes,
+  sizes: _sizes,
   compact,
 }: {
   label: string;
   src: string;
+  /** Kept for API compatibility with callers; native img does not use `sizes`. */
   sizes: string;
   compact?: boolean;
 }): JSX.Element | null {
@@ -35,14 +35,16 @@ function HostedStillTile({
         {label}
       </span>
       <div className={box}>
-        <Image
+        {/* Native <img>: `next/image` can trigger ORB on cross-origin tunnel URLs in production. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={src}
           alt=""
-          fill
-          sizes={sizes}
-          className="object-contain p-1"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 h-full w-full object-contain p-1"
           onError={onError}
-          unoptimized
         />
       </div>
     </div>
@@ -132,6 +134,9 @@ export function PokemonSpritePackPanel({
           <img
             src={gifSrc}
             alt=""
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
             className={compact ? "max-h-28 w-auto object-contain" : "max-h-40 w-auto object-contain"}
             onError={() => setGifHidden(true)}
           />

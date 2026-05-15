@@ -32,8 +32,9 @@ type PokemonIndexedImageProps = {
 };
 
 /**
- * Renders artwork from known HTTPS hosts (pokemondb + Coveo `*.cloud.coveo.com`)
- * or from the configured sprite base (`NEXT_PUBLIC_SPRITE_ASSET_BASE_URL`) via `next/image`.
+ * Renders artwork from known HTTPS hosts (pokemondb + Coveo `*.cloud.coveo.com`) via
+ * `next/image`, or from the configured sprite base with a native `<img>` (avoids ORB
+ * issues some browsers apply to cross-origin `next/image` loads behind tunnels/CDNs).
  */
 export function PokemonIndexedImage({
   src,
@@ -52,7 +53,22 @@ export function PokemonIndexedImage({
     );
   }
 
-  const sprite = isSpriteAssetUrl(src);
+  if (isSpriteAssetUrl(src)) {
+    return (
+      <div className={`relative overflow-hidden ${boxClassName}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          {...(priority ? { fetchPriority: "high" as const } : {})}
+          className={`absolute inset-0 h-full w-full ${imageClassName}`}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`relative overflow-hidden ${boxClassName}`}>
@@ -63,9 +79,6 @@ export function PokemonIndexedImage({
         sizes={sizes}
         className={imageClassName}
         priority={priority}
-        // Sprite host is often behind Cloudflare Tunnel; Vercel's image optimizer
-        // fetches from a datacenter IP and can get 502 (bot/WAF). Browser loads are fine.
-        unoptimized={sprite}
       />
     </div>
   );
