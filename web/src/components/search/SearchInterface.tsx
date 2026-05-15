@@ -32,6 +32,7 @@ import {
   formatReleaseLabel,
 } from "@/lib/pokemonFacetLabels";
 import { yamlFacetHeading } from "@/lib/yamlDataFacetHeadings";
+import { yamlDataUi, type YamlUiStrings } from "@/lib/yamlDataUiStrings";
 
 /** Stable IDs for CSS / design tokens — override via `[data-product-filter="…"]` in `globals.css`. */
 export const PRODUCT_FILTER_IDS = {
@@ -192,10 +193,12 @@ function bstFromRaw(raw: Record<string, unknown>): number | null {
 function PokemonCard({
   result,
   imagePriority,
+  ui,
 }: {
   result: Result;
   /** First viewport of cards: eager-load artwork for LCP (next/image `priority`). */
   imagePriority?: boolean;
+  ui: YamlUiStrings;
 }) {
   const raw = result.raw as Record<string, unknown>;
   const picture =
@@ -231,7 +234,7 @@ function PokemonCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-            No image
+            {ui.cardNoImage}
           </div>
         )}
       </div>
@@ -246,8 +249,8 @@ function PokemonCard({
             </span>
           )}
           {bst != null && (
-            <span className="font-semibold text-sky-600" aria-label={`Base Stat Total ${bst}`}>
-              BST {bst}
+            <span className="font-semibold text-sky-600" aria-label={ui.cardBstAria(bst)}>
+              {ui.cardBstPrefix} {bst}
             </span>
           )}
         </p>
@@ -267,7 +270,7 @@ function PokemonCard({
       href={`/pokemon/${slug}`}
       onClick={() => interactiveResult.select()}
       className="group block h-full rounded-md outline-none ring-sky-500/40 focus-visible:ring-4"
-      aria-label={`View details for ${name}`}
+      aria-label={ui.cardViewDetailsAria(name)}
     >
       {cardBody}
     </Link>
@@ -368,9 +371,11 @@ function EnvMissingBanner() {
 function SearchBoxWithSuggestions({
   searchBox,
   state,
+  ui,
 }: {
   searchBox: SearchBox;
   state: SearchBoxState;
+  ui: YamlUiStrings;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -450,9 +455,9 @@ function SearchBoxWithSuggestions({
             setActiveIndex(-1);
           }
         }}
-        placeholder="Search Pokémon…"
+        placeholder={ui.searchPlaceholder}
         className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 shadow-sm outline-none ring-sky-500/25 focus:border-sky-500 focus:ring-4"
-        aria-label="Search"
+        aria-label={ui.searchAriaLabel}
       />
       {showListPanel && (
         <ul
@@ -463,13 +468,12 @@ function SearchBoxWithSuggestions({
         >
           {showLoadingRow && (
             <li className="px-3 py-2 text-sm text-zinc-500" role="status">
-              Loading suggestions…
+              {ui.suggestionsLoading}
             </li>
           )}
           {showEmptyHint && (
             <li className="px-3 py-2 text-xs leading-relaxed text-zinc-500" role="note">
-              No query suggestions yet. The Coveo Query Suggestions model often returns nothing while
-              status is Limited, until enough search analytics have been ingested.
+              {ui.suggestionsEmptyHint}
             </li>
           )}
           {suggestions.map((sug, idx) => (
@@ -503,6 +507,7 @@ function SearchBoxWithSuggestions({
 
 function SearchInterfaceConfigured() {
   const dataLocale = useYamlDataLocale();
+  const ui = yamlDataUi(dataLocale);
   const controllers = getSearchControllers();
   const engineState = useSearchEngineState();
   const searchError = lastSearchError(engineState);
@@ -763,10 +768,10 @@ function SearchInterfaceConfigured() {
       )}
       <p className="text-sm text-zinc-500">
         {searchError != null
-          ? "No results loaded (search failed)."
+          ? ui.resultsFailed
           : resultState.isLoading
-            ? "Loading…"
-            : `${resultState.results.length} result${resultState.results.length === 1 ? "" : "s"}`}
+            ? ui.resultsLoading
+            : ui.resultsCount(resultState.results.length)}
       </p>
       <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 lg:grid-cols-4">
         {resultState.results.map((result, index) => (
@@ -774,6 +779,7 @@ function SearchInterfaceConfigured() {
             key={result.uniqueId}
             result={result}
             imagePriority={index < 8}
+            ui={ui}
           />
         ))}
       </div>
@@ -794,10 +800,10 @@ function SearchInterfaceConfigured() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-400">
-                Coveo Pokédex
+                {ui.chromeTagline}
               </p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">
-                Pokémon search
+                {ui.pageTitleSearch}
               </h1>
             </div>
             <form
@@ -810,12 +816,13 @@ function SearchInterfaceConfigured() {
               <SearchBoxWithSuggestions
                 searchBox={controllers.searchBox}
                 state={searchBoxState}
+                ui={ui}
               />
               <button
                 type="submit"
                 className="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700"
               >
-                Search
+                {ui.searchButton}
               </button>
             </form>
           </div>

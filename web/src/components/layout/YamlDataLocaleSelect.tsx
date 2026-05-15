@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useYamlDataLocale } from "@/hooks/useYamlDataLocale";
 import {
   getYamlDataLocale,
@@ -21,6 +22,11 @@ function onLocaleChange(next: YamlDataLocale) {
 
 export function YamlDataLocaleSelect() {
   const dataLocale = useYamlDataLocale();
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = dataLocale === "es" ? "es" : "en";
+  }, [dataLocale]);
 
   return (
     <label className="flex items-center gap-2 text-xs font-medium text-zinc-600">

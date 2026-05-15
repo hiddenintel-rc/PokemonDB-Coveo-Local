@@ -8,6 +8,7 @@ import {
   type PokemonDetailHit,
 } from "@/coveo/fetch-pokemon-by-slug";
 import { YAML_DATA_LOCALE_CHANGE_EVENT } from "@/coveo/yaml-data-locale";
+import type { YamlDataLocale } from "@/coveo/yaml-data-locale";
 import {
   getDetailGeneratedAnswer,
   runDetailRgaNlSearch,
@@ -15,9 +16,9 @@ import {
 import { coveoConfigured } from "@/coveo/search-instance";
 import { GeneratedAnswerPanel } from "@/components/search/GeneratedAnswerPanel";
 import { useCoveoController } from "@/hooks/useCoveoController";
+import { useYamlDataLocale } from "@/hooks/useYamlDataLocale";
 import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import { PokemonTypePillRow } from "@/components/pokemon/PokemonTypePill";
-import { BST_TIERS } from "@/coveo/search-instance";
 import { AppShell } from "@/components/layout/AppShell";
 import { YamlDataLocaleSelect } from "@/components/layout/YamlDataLocaleSelect";
 import { Card } from "@/components/layout/Card";
@@ -33,6 +34,11 @@ import {
 } from "@/lib/pokemonFacetLabels";
 import { PokemonSpritePackPanel } from "@/components/pokemon/PokemonSpritePackPanel";
 import { spriteAssetBaseUrl } from "@/lib/spriteAsset";
+import {
+  bstTierLabelForLocale,
+  yamlDataUi,
+  type YamlUiStrings,
+} from "@/lib/yamlDataUiStrings";
 
 /* ── View state ────────────────────────────────────────────────────────── */
 
@@ -82,10 +88,6 @@ function pokemonDetailRgaSearchQuery(hit: PokemonDetailHit): string {
   return cleanIndexedPokemonTitle(hit.title).trim();
 }
 
-function bstTierLabel(bst: number): string | undefined {
-  return BST_TIERS.find((t) => bst >= t.start && bst < t.end)?.label;
-}
-
 function formatEvYieldList(raw: Record<string, unknown>): string | null {
   const v = raw.pokemonevyield;
   if (v == null) return null;
@@ -111,6 +113,7 @@ function formatMetricMeasurement(value: number | null, unit: "m" | "kg"): string
 
 /** Same centered “sheet” and header rhythm as `SearchInterfaceConfigured`. */
 function PokedexDetailChrome({
+  chromeTagline,
   title,
   metaLine,
   /**
@@ -120,11 +123,14 @@ function PokedexDetailChrome({
    * field via `transform.ts → resolveCanonicalForm`.
    */
   formSubtitle,
+  backLabel,
   children,
 }: {
+  chromeTagline: string;
   title: string;
   metaLine?: ReactNode;
   formSubtitle?: string;
+  backLabel: string;
   children: ReactNode;
 }) {
   return (
@@ -138,11 +144,11 @@ function PokedexDetailChrome({
           <YamlDataLocaleSelect />
         </div>
         <nav>
-          <BackToSearchLink />
+          <BackToSearchLink label={backLabel} />
         </nav>
         <header className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-400">
-            Coveo Pokédex
+            {chromeTagline}
           </p>
           {metaLine != null && (
             <p className="text-[11px] font-medium tabular-nums text-zinc-500">
@@ -164,14 +170,16 @@ function PokedexDetailChrome({
 
 /* ── Stat bar ──────────────────────────────────────────────────────────── */
 
-const BASE_STAT_FIELDS = [
-  { key: "pokemonhp",      label: "HP"      },
-  { key: "pokemonattack",  label: "Attack"  },
-  { key: "pokemondefense", label: "Defense" },
-  { key: "pokemonspatk",   label: "Sp. Atk" },
-  { key: "pokemonspdef",   label: "Sp. Def" },
-  { key: "pokemonspeed",   label: "Speed"   },
-] as const;
+function baseStatFields(ui: YamlUiStrings) {
+  return [
+    { key: "pokemonhp", label: ui.detailStatHp },
+    { key: "pokemonattack", label: ui.detailStatAttack },
+    { key: "pokemondefense", label: ui.detailStatDefense },
+    { key: "pokemonspatk", label: ui.detailStatSpAtk },
+    { key: "pokemonspdef", label: ui.detailStatSpDef },
+    { key: "pokemonspeed", label: ui.detailStatSpeed },
+  ] as const;
+}
 
 const STAT_BAR_MAX = 255;
 
@@ -201,8 +209,16 @@ function StatRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-function BaseStatsPanel({ raw }: { raw: Record<string, unknown> }) {
-  const statRows = BASE_STAT_FIELDS.map(({ key, label }) => ({
+function BaseStatsPanel({
+  raw,
+  ui,
+  dataLocale,
+}: {
+  raw: Record<string, unknown>;
+  ui: YamlUiStrings;
+  dataLocale: YamlDataLocale;
+}) {
+  const statRows = baseStatFields(ui).map(({ key, label }) => ({
     label,
     value: rawNumber(raw, key),
   }));
@@ -210,7 +226,7 @@ function BaseStatsPanel({ raw }: { raw: Record<string, unknown> }) {
   const hasAny = bst != null || statRows.some((s) => s.value != null);
   if (!hasAny) return null;
 
-  const tier = bst != null ? bstTierLabel(bst) : undefined;
+  const tier = bst != null ? bstTierLabelForLocale(bst, dataLocale) : undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -220,7 +236,7 @@ function BaseStatsPanel({ raw }: { raw: Record<string, unknown> }) {
       {bst != null && (
         <div className="mt-1 grid grid-cols-[4.5rem_auto_1fr] items-center gap-2 border-t border-zinc-200 pt-1.5">
           <span className="text-right text-xs font-semibold text-zinc-600">
-            Total
+            {ui.detailStatTotal}
           </span>
           <span className="text-sm font-semibold tabular-nums text-zinc-950">
             {bst}
@@ -238,7 +254,7 @@ function BaseStatsPanel({ raw }: { raw: Record<string, unknown> }) {
 
 /* ── Shared sub-components ─────────────────────────────────────────────── */
 
-function BackToSearchLink() {
+function BackToSearchLink({ label }: { label: string }) {
   return (
     <Link
       href="/"
@@ -256,7 +272,7 @@ function BackToSearchLink() {
       >
         <path d="M15 18l-6-6 6-6" />
       </svg>
-      Back to search
+      {label}
     </Link>
   );
 }
@@ -285,12 +301,12 @@ function BadgeList({ label, values }: { label: string; values: string[] }) {
   );
 }
 
-function TypesSection({ types }: { types: string[] }) {
+function TypesSection({ types, heading }: { types: string[]; heading: string }) {
   if (types.length === 0) return null;
   return (
     <div className="space-y-1.5">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Types
+        {heading}
       </h3>
       <PokemonTypePillRow types={types} className="justify-start" />
     </div>
@@ -338,12 +354,18 @@ function PokemonDetailRgaBlock({ hit }: { hit: PokemonDetailHit }) {
  * none of the fields are populated, so legacy Web-source documents continue
  * to render without an empty pane.
  */
-function ProfileSection({ rows }: { rows: Array<{ label: string; value: string }> }) {
+function ProfileSection({
+  heading,
+  rows,
+}: {
+  heading: string;
+  rows: Array<{ label: string; value: string }>;
+}) {
   if (rows.length === 0) return null;
   return (
     <div className="space-y-1.5">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Profile
+        {heading}
       </h3>
       <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
         {rows.map(({ label, value }) => (
@@ -359,9 +381,13 @@ function ProfileSection({ rows }: { rows: Array<{ label: string; value: string }
 
 /* ── Loading skeleton ──────────────────────────────────────────────────── */
 
-function PokemonDetailSkeleton() {
+function PokemonDetailSkeleton({ ui }: { ui: YamlUiStrings }) {
   return (
-    <PokedexDetailChrome title="Pokémon">
+    <PokedexDetailChrome
+      chromeTagline={ui.chromeTagline}
+      backLabel={ui.detailBackToSearch}
+      title={ui.detailSkeletonTitle}
+    >
       <div className="flex flex-col gap-4" aria-busy aria-live="polite">
         <Card
           size="lg"
@@ -418,33 +444,37 @@ function PokemonDetailSkeleton() {
 
 /* ── Error / not-found states ──────────────────────────────────────────── */
 
-function PokemonNotFound({ slug }: { slug: string }) {
+function PokemonNotFound({ slug, ui }: { slug: string; ui: YamlUiStrings }) {
   return (
-    <PokedexDetailChrome title="Pokémon not found">
+    <PokedexDetailChrome
+      chromeTagline={ui.chromeTagline}
+      backLabel={ui.detailBackToSearch}
+      title={ui.notFoundPageTitle}
+    >
       <Card
         size="lg"
         region="pokemon-not-found"
         className="border-zinc-200 bg-white text-center shadow-sm"
       >
           <h2 className="text-lg font-semibold text-zinc-950">
-            No matching species
+            {ui.notFoundHeading}
           </h2>
           <p className="mt-3 text-sm text-zinc-600">
-            No indexed Pokémon matched the slug{" "}
+            {ui.notFoundIntroBeforeSlug}
             <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-800">
               {slug}
             </code>
-            .
+            {ui.notFoundIntroAfterSlug}
           </p>
           <p className="mt-2 text-sm text-zinc-500">
-            Try a different name from the search results.
+            {ui.notFoundBody2}
           </p>
           <div className="mt-6">
             <Link
               href="/"
               className="inline-flex items-center rounded-md bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700"
             >
-              Back to search
+              {ui.notFoundCta}
             </Link>
           </div>
       </Card>
@@ -452,11 +482,15 @@ function PokemonNotFound({ slug }: { slug: string }) {
   );
 }
 
-function PokemonDetailError({ message }: { message: string }) {
+function PokemonDetailError({ message, ui }: { message: string; ui: YamlUiStrings }) {
   return (
-    <PokedexDetailChrome title="Could not load details">
+    <PokedexDetailChrome
+      chromeTagline={ui.chromeTagline}
+      backLabel={ui.detailBackToSearch}
+      title={ui.errorPageTitle}
+    >
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950 shadow-sm">
-          <p className="font-medium">Could not load Pokémon details</p>
+          <p className="font-medium">{ui.errorBody}</p>
           <p className="mt-2 text-sm">{message}</p>
       </div>
     </PokedexDetailChrome>
@@ -465,7 +499,15 @@ function PokemonDetailError({ message }: { message: string }) {
 
 /* ── Detail view ───────────────────────────────────────────────────────── */
 
-function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
+function PokemonDetail({
+  hit,
+  ui,
+  dataLocale,
+}: {
+  hit: PokemonDetailHit;
+  ui: YamlUiStrings;
+  dataLocale: YamlDataLocale;
+}) {
   const raw = hit.raw;
   const picture =
     (raw.pictureuri as string | undefined) ||
@@ -505,7 +547,7 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
         </span>
       )}
       {species && (
-        <span className="text-zinc-600">{species} Pokémon</span>
+        <span className="text-zinc-600">{ui.detailSpeciesMeta(species)}</span>
       )}
       {(nationalDexLabel != null || species) && bst != null && (
         <span className="mx-1.5 text-zinc-300" aria-hidden>
@@ -515,9 +557,9 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
       {bst != null && (
         <span
           className="font-semibold text-sky-600"
-          aria-label={`Base Stat Total ${bst}`}
+          aria-label={ui.detailMetaBstAria(bst)}
         >
-          BST {bst}
+          {ui.detailMetaBstPrefix} {bst}
         </span>
       )}
     </>
@@ -525,28 +567,37 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
 
   const profileRows: Array<{ label: string; value: string }> = [];
   if (heightLabel && weightLabel) {
-    profileRows.push({ label: "Size", value: `${heightLabel} · ${weightLabel}` });
+    profileRows.push({
+      label: ui.detailProfileSize,
+      value: `${heightLabel} · ${weightLabel}`,
+    });
   } else if (heightLabel) {
-    profileRows.push({ label: "Height", value: heightLabel });
+    profileRows.push({ label: ui.detailProfileHeight, value: heightLabel });
   } else if (weightLabel) {
-    profileRows.push({ label: "Weight", value: weightLabel });
+    profileRows.push({ label: ui.detailProfileWeight, value: weightLabel });
   }
   if (catchRate != null) {
-    profileRows.push({ label: "Catch rate", value: String(catchRate) });
+    profileRows.push({ label: ui.detailProfileCatchRate, value: String(catchRate) });
   }
   if (growthRate) {
-    profileRows.push({ label: "Growth rate", value: formatGrowthRateLabel(growthRate) });
+    profileRows.push({
+      label: ui.detailProfileGrowthRate,
+      value: formatGrowthRateLabel(growthRate),
+    });
   }
   if (release) {
-    profileRows.push({ label: "Debut", value: formatReleaseLabel(release) });
+    profileRows.push({
+      label: ui.detailProfileDebut,
+      value: formatReleaseLabel(release),
+    });
   }
   if (evYieldLabel) {
-    profileRows.push({ label: "EV yield", value: evYieldLabel });
+    profileRows.push({ label: ui.detailProfileEvYield, value: evYieldLabel });
   }
 
   const hasStats =
     rawNumber(raw, "pokemonbst") != null ||
-    BASE_STAT_FIELDS.some(({ key }) => rawNumber(raw, key) != null);
+    baseStatFields(ui).some(({ key }) => rawNumber(raw, key) != null);
 
   const mainCard = (
     <Card
@@ -567,21 +618,23 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
             />
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-              No image
+              {ui.detailNoImage}
             </div>
           )}
         </div>
 
         <div className="min-w-0 flex-1 space-y-5">
-          <TypesSection types={types} />
-          {generation && <BadgeList label="Generation" values={[generation]} />}
-          <BadgeList label="Abilities" values={abilities} />
-          <ProfileSection rows={profileRows} />
+          <TypesSection types={types} heading={ui.detailTypes} />
+          {generation && (
+            <BadgeList label={ui.detailGeneration} values={[generation]} />
+          )}
+          <BadgeList label={ui.detailAbilities} values={abilities} />
+          <ProfileSection heading={ui.detailProfile} rows={profileRows} />
         </div>
 
         {nationalDex != null && spriteAssetBaseUrl() && (
           <aside
-            aria-label="Local sprite assets"
+            aria-label={ui.detailSpriteAsideAria}
             className="w-full shrink-0 border-t border-zinc-200 pt-6 lg:w-64 lg:border-l lg:border-t-0 lg:pt-0 lg:pl-6 xl:w-72"
           >
             <PokemonSpritePackPanel nationalDex={nationalDex} compact />
@@ -590,16 +643,14 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
       </div>
 
       <footer className="mt-8 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-zinc-500">
-          Indexed in Coveo from YAML reference data (pokemondb.net species URLs)
-        </p>
+        <p className="text-xs text-zinc-500">{ui.detailFooterIndexed}</p>
         <a
           href={hit.clickUri}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 outline-none hover:text-sky-900 focus-visible:ring-4 focus-visible:ring-sky-500/30"
         >
-          View on pokemondb.net
+          {ui.detailViewOnSite}
           <svg
             viewBox="0 0 24 24"
             className="size-4"
@@ -627,14 +678,16 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
         className="border-zinc-200 bg-zinc-50 shadow-sm"
       >
         <h2 className="mb-4 text-lg font-semibold tracking-tight text-zinc-900">
-          Stats
+          {ui.detailStats}
         </h2>
-        <BaseStatsPanel raw={raw} />
+        <BaseStatsPanel raw={raw} ui={ui} dataLocale={dataLocale} />
       </Card>
     ) : null;
 
   return (
     <PokedexDetailChrome
+      chromeTagline={ui.chromeTagline}
+      backLabel={ui.detailBackToSearch}
       title={displayTitle}
       metaLine={metaLine}
       formSubtitle={formName ?? undefined}
@@ -651,6 +704,8 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
 /* ── Exported view ─────────────────────────────────────────────────────── */
 
 export function PokemonDetailView({ slug }: { slug: string }) {
+  const dataLocale = useYamlDataLocale();
+  const ui = yamlDataUi(dataLocale);
   const [state, setState] = useState<ViewState>({ status: "loading" });
   const [dataLocaleEpoch, setDataLocaleEpoch] = useState(0);
   const displaySlug = normalizeSlug(slug) ?? slug;
@@ -685,8 +740,8 @@ export function PokemonDetailView({ slug }: { slug: string }) {
     };
   }, [slug, dataLocaleEpoch]);
 
-  if (state.status === "loading") return <PokemonDetailSkeleton />;
-  if (state.status === "notfound") return <PokemonNotFound slug={displaySlug} />;
-  if (state.status === "error") return <PokemonDetailError message={state.message} />;
-  return <PokemonDetail hit={state.hit} />;
+  if (state.status === "loading") return <PokemonDetailSkeleton ui={ui} />;
+  if (state.status === "notfound") return <PokemonNotFound slug={displaySlug} ui={ui} />;
+  if (state.status === "error") return <PokemonDetailError message={state.message} ui={ui} />;
+  return <PokemonDetail hit={state.hit} ui={ui} dataLocale={dataLocale} />;
 }
