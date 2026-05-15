@@ -35,6 +35,34 @@ const TYPE_PILL_CLASS: Record<string, string> = {
 
 const PILL_FALLBACK = "bg-zinc-300 text-zinc-900 ring-1 ring-zinc-400/40";
 
+/**
+ * Spanish `pokemontype` labels (lowercased for lookup) → English slug keys used
+ * in {@link TYPE_PILL_CLASS} / {@link TYPE_CARD_CLASS} / {@link TYPE_ACCENT_CLASS}.
+ */
+const SPANISH_TYPE_TO_SLUG: Record<string, string> = {
+  normal: "normal",
+  fuego: "fire",
+  agua: "water",
+  eléctrico: "electric",
+  electrico: "electric",
+  planta: "grass",
+  hielo: "ice",
+  lucha: "fighting",
+  veneno: "poison",
+  tierra: "ground",
+  volador: "flying",
+  psíquico: "psychic",
+  psiquico: "psychic",
+  bicho: "bug",
+  roca: "rock",
+  fantasma: "ghost",
+  dragón: "dragon",
+  dragon: "dragon",
+  siniestro: "dark",
+  acero: "steel",
+  hada: "fairy",
+};
+
 /* ── Card surface tints ──────────────────────────────────────────────────── */
 const TYPE_CARD_CLASS: Record<string, string> = {
   normal:   "bg-stone-50",
@@ -85,21 +113,27 @@ const TYPE_ACCENT_CLASS: Record<string, string> = {
 
 const ACCENT_FALLBACK = "border-border-default";
 
+function typeStyleKey(typeName: string): string {
+  const k = typeName.trim().toLowerCase();
+  if (k in TYPE_PILL_CLASS) return k;
+  return SPANISH_TYPE_TO_SLUG[k] ?? k;
+}
+
 /* ── Public API ──────────────────────────────────────────────────────────── */
 
 export function pokemonTypePillClass(typeName: string): string {
-  const key = typeName.trim().toLowerCase();
+  const key = typeStyleKey(typeName);
   return TYPE_PILL_CLASS[key] ?? PILL_FALLBACK;
 }
 
 /** Subtle tinted background for card/article surfaces. Pass the primary type. */
 export function pokemonTypeCardClass(typeName: string): string {
-  const key = typeName.trim().toLowerCase();
+  const key = typeStyleKey(typeName);
   return TYPE_CARD_CLASS[key] ?? CARD_FALLBACK;
 }
 
 /** Colored border/ring accent matching the type palette. */
 export function pokemonTypeAccentClass(typeName: string): string {
-  const key = typeName.trim().toLowerCase();
+  const key = typeStyleKey(typeName);
   return TYPE_ACCENT_CLASS[key] ?? ACCENT_FALLBACK;
 }

@@ -9,6 +9,7 @@ import {
 } from "@/coveo/search-instance";
 import { slugFromClickUri } from "@/coveo/fetch-pokemon-by-slug";
 import { useCoveoController } from "@/hooks/useCoveoController";
+import { useYamlDataLocale } from "@/hooks/useYamlDataLocale";
 import { buildInteractiveResult } from "@coveo/headless";
 import type { Result, SearchBox, SearchBoxState, SearchEngine } from "@coveo/headless";
 import { GeneratedAnswerPanel } from "@/components/search/GeneratedAnswerPanel";
@@ -16,6 +17,7 @@ import Link from "next/link";
 import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import { PokemonTypePillRow } from "@/components/pokemon/PokemonTypePill";
 import { AppShell } from "@/components/layout/AppShell";
+import { YamlDataLocaleSelect } from "@/components/layout/YamlDataLocaleSelect";
 import { Card } from "@/components/layout/Card";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +31,7 @@ import {
   formatGrowthRateLabel,
   formatReleaseLabel,
 } from "@/lib/pokemonFacetLabels";
+import { yamlFacetHeading } from "@/lib/yamlDataFacetHeadings";
 
 /** Stable IDs for CSS / design tokens — override via `[data-product-filter="…"]` in `globals.css`. */
 export const PRODUCT_FILTER_IDS = {
@@ -499,6 +502,7 @@ function SearchBoxWithSuggestions({
 /* ── Main configured interface ─────────────────────────────────────────── */
 
 function SearchInterfaceConfigured() {
+  const dataLocale = useYamlDataLocale();
   const controllers = getSearchControllers();
   const engineState = useSearchEngineState();
   const searchError = lastSearchError(engineState);
@@ -534,11 +538,11 @@ function SearchInterfaceConfigured() {
     <div
       className="grid items-start gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3"
       data-region="product-filters"
-      aria-label="Product filters"
+      aria-label={dataLocale === "es" ? "Filtros" : "Product filters"}
     >
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonType}
-        heading="Pokémon type"
+        heading={yamlFacetHeading("pokemonType", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonType}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonType : null)
@@ -557,7 +561,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonGeneration}
-        heading="Generation"
+        heading={yamlFacetHeading("generation", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonGeneration}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonGeneration : null)
@@ -576,7 +580,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonAbility}
-        heading="Ability"
+        heading={yamlFacetHeading("ability", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonAbility}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonAbility : null)
@@ -601,7 +605,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonBst}
-        heading="Base stat total"
+        heading={yamlFacetHeading("bst", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonBst}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonBst : null)
@@ -636,7 +640,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonCatchRate}
-        heading="Catch rate (higher = easier)"
+        heading={yamlFacetHeading("catchRate", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonCatchRate}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonCatchRate : null)
@@ -670,7 +674,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonRelease}
-        heading="Game release"
+        heading={yamlFacetHeading("release", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonRelease}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonRelease : null)
@@ -689,7 +693,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonSpecies}
-        heading="Species category"
+        heading={yamlFacetHeading("species", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonSpecies}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonSpecies : null)
@@ -708,7 +712,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonGrowthRate}
-        heading="Growth rate"
+        heading={yamlFacetHeading("growthRate", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonGrowthRate}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonGrowthRate : null)
@@ -727,7 +731,7 @@ function SearchInterfaceConfigured() {
 
       <ProductFacetFilterSection
         productFilterId={PRODUCT_FILTER_IDS.pokemonEvYield}
-        heading="EV yield"
+        heading={yamlFacetHeading("evYield", dataLocale)}
         open={openFacetId === PRODUCT_FILTER_IDS.pokemonEvYield}
         onOpenChange={(next) =>
           setOpenFacetId(next ? PRODUCT_FILTER_IDS.pokemonEvYield : null)
@@ -783,6 +787,9 @@ function SearchInterfaceConfigured() {
       className="max-w-[42rem] bg-white/95"
     >
       <div className="flex flex-col gap-5">
+        <div className="flex justify-end">
+          <YamlDataLocaleSelect />
+        </div>
         <header className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>

@@ -22,5 +22,8 @@ node_modules/
 tools/seed-ml/
 tools/push-yaml/
 
+# Coveo YAML export snapshots (local translation / re-push; can be large)
+tools/coveo-locale-pipeline/output/
+
 # Legacy local sprite package path (use committed `tools/local-sprite-server` instead)
 web/pokemon-asset-hosted/

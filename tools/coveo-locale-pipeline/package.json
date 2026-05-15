@@ -1,0 +1,11 @@
+{
+  "name": "coveo-locale-pipeline",
+  "private": true,
+  "description": "Export canonical YAML Push documents from Coveo (English) for local ES translation and optional re-push to a Spanish source",
+  "type": "module",
+  "scripts": {
+    "export:yaml-en": "node ./src/export-yaml-source.mjs",
+    "translate": "node ./src/translate.mjs",
+    "push:es": "node ./src/push-es.mjs"
+  }
+}

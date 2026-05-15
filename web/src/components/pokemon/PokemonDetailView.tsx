@@ -7,6 +7,7 @@ import {
   normalizeSlug,
   type PokemonDetailHit,
 } from "@/coveo/fetch-pokemon-by-slug";
+import { YAML_DATA_LOCALE_CHANGE_EVENT } from "@/coveo/yaml-data-locale";
 import {
   getDetailGeneratedAnswer,
   runDetailRgaNlSearch,
@@ -18,6 +19,7 @@ import { PokemonIndexedImage } from "@/components/pokemon/PokemonIndexedImage";
 import { PokemonTypePillRow } from "@/components/pokemon/PokemonTypePill";
 import { BST_TIERS } from "@/coveo/search-instance";
 import { AppShell } from "@/components/layout/AppShell";
+import { YamlDataLocaleSelect } from "@/components/layout/YamlDataLocaleSelect";
 import { Card } from "@/components/layout/Card";
 import {
   cleanIndexedPokemonTitle,
@@ -132,6 +134,9 @@ function PokedexDetailChrome({
       className="max-w-[42rem] bg-white/95 lg:max-w-6xl"
     >
       <div className="flex flex-col gap-5">
+        <div className="flex justify-end">
+          <YamlDataLocaleSelect />
+        </div>
         <nav>
           <BackToSearchLink />
         </nav>
@@ -647,9 +652,17 @@ function PokemonDetail({ hit }: { hit: PokemonDetailHit }) {
 
 export function PokemonDetailView({ slug }: { slug: string }) {
   const [state, setState] = useState<ViewState>({ status: "loading" });
+  const [dataLocaleEpoch, setDataLocaleEpoch] = useState(0);
   const displaySlug = normalizeSlug(slug) ?? slug;
 
   useEffect(() => {
+    const bump = () => setDataLocaleEpoch((n) => n + 1);
+    window.addEventListener(YAML_DATA_LOCALE_CHANGE_EVENT, bump);
+    return () => window.removeEventListener(YAML_DATA_LOCALE_CHANGE_EVENT, bump);
+  }, []);
+
+  useEffect(() => {
+    setState({ status: "loading" });
     const controller = new AbortController();
     let cancelled = false;
 
@@ -670,7 +683,7 @@ export function PokemonDetailView({ slug }: { slug: string }) {
       cancelled = true;
       controller.abort();
     };
-  }, [slug]);
+  }, [slug, dataLocaleEpoch]);
 
   if (state.status === "loading") return <PokemonDetailSkeleton />;
   if (state.status === "notfound") return <PokemonNotFound slug={displaySlug} />;

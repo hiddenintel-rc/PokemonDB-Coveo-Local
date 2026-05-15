@@ -7,6 +7,8 @@ import {
   buildResultList,
   buildSearchBox,
   buildSearchEngine,
+  loadSearchActions,
+  loadSearchAnalyticsActions,
   type Facet,
   type GeneratedAnswer,
   type NumericFacet,
@@ -14,6 +16,7 @@ import {
   type SearchBox,
   type SearchEngine,
 } from "@coveo/headless";
+import { getYamlPushSourceDisplayName } from "@/coveo/yaml-data-locale";
 
 let engine: SearchEngine | null = null;
 
@@ -27,13 +30,6 @@ export const RGA_CITATION_FIELDS_TO_INCLUDE = [
   "pokemonspecies",
   "pokemonrelease",
 ] as const;
-
-/**
- * Name of the Push source created in Admin → Sources for the YAML-ingested
- * Pokémon dataset. Used in a `cq` (constant query) filter so the live app
- * only returns documents from this source — see `preprocessRequest` below.
- */
-const COVEO_PUSH_SOURCE_NAME = "PokemonDB Reference (YAML)";
 
 /** Single “word” from the search box (letters, digits, hyphen); excludes Coveo operators. */
 const PREFIX_WILDCARD_TOKEN = /^[a-zA-Z][a-zA-Z0-9-]{0,30}$/;
@@ -128,8 +124,9 @@ export function getSearchEngineConfiguration(): NonNullable<
       // (constant query) does not affect relevance ranking and does not
       // surface as a user-visible facet filter in analytics the same way
       // explicit facet selections do.
-      if (COVEO_PUSH_SOURCE_NAME) {
-        const sourceFilter = `@source=="${COVEO_PUSH_SOURCE_NAME}"`;
+      const pushSourceName = getYamlPushSourceDisplayName();
+      if (pushSourceName) {
+        const sourceFilter = `@source=="${pushSourceName}"`;
         const existingCq = typeof payload.cq === "string" ? payload.cq.trim() : "";
         payload.cq = existingCq ? `(${existingCq}) AND ${sourceFilter}` : sourceFilter;
         mutated = true;
@@ -365,6 +362,27 @@ export function getSearchControllers(): SearchControllers {
     };
   }
   return controllers;
+}
+
+/**
+ * After the YAML Push source locale changes (EN ↔ ES), clear facet state and
+ * re-run search so stale English facet selections do not constrain Spanish hits.
+ */
+export function refreshSearchAfterYamlDataLocaleChange(): void {
+  const engine = getSearchEngine();
+  const c = getSearchControllers();
+  c.typeFacet.deselectAll();
+  c.generationFacet.deselectAll();
+  c.abilityFacet.deselectAll();
+  c.bstFacet.deselectAll();
+  c.catchRateFacet.deselectAll();
+  c.releaseFacet.deselectAll();
+  c.growthRateFacet.deselectAll();
+  c.speciesFacet.deselectAll();
+  c.evYieldFacet.deselectAll();
+  const { executeSearch } = loadSearchActions(engine);
+  const { logInterfaceLoad } = loadSearchAnalyticsActions(engine);
+  engine.dispatch(executeSearch(logInterfaceLoad()));
 }
 
 export function coveoConfigured(): boolean {

@@ -1,0 +1,8 @@
+{
+  "attack": "ataque",
+  "defense": "defensa",
+  "hp": "ps",
+  "spatk": "atk. esp.",
+  "spdef": "def. esp.",
+  "speed": "velocidad"
+}
