@@ -52,6 +52,8 @@ export function PokemonIndexedImage({
     );
   }
 
+  const sprite = isSpriteAssetUrl(src);
+
   return (
     <div className={`relative overflow-hidden ${boxClassName}`}>
       <Image
@@ -61,6 +63,9 @@ export function PokemonIndexedImage({
         sizes={sizes}
         className={imageClassName}
         priority={priority}
+        // Sprite host is often behind Cloudflare Tunnel; Vercel's image optimizer
+        // fetches from a datacenter IP and can get 502 (bot/WAF). Browser loads are fine.
+        unoptimized={sprite}
       />
     </div>
   );

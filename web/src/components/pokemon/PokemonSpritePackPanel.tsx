@@ -42,6 +42,7 @@ function HostedStillTile({
           sizes={sizes}
           className="object-contain p-1"
           onError={onError}
+          unoptimized
         />
       </div>
     </div>
