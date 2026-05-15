@@ -1,28 +1,42 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState, type JSX } from "react";
+import { useCallback, useEffect, useState, type JSX } from "react";
 import {
-  buildSpritePackUrls,
-  isSpriteAssetUrl,
-  spriteAssetBaseUrl,
+  buildSpritePackSources,
+  isConfiguredSpriteHostUrl,
+  spritePackUiEnabled,
+  type SpriteSource,
 } from "@/lib/spriteAsset";
 
 function HostedStillTile({
   label,
-  src,
+  source,
   sizes,
   compact,
 }: {
   label: string;
-  src: string;
+  source: SpriteSource;
   sizes: string;
   compact?: boolean;
 }): JSX.Element | null {
+  const [src, setSrc] = useState(source.primary);
   const [hidden, setHidden] = useState(false);
-  const onError = useCallback(() => setHidden(true), []);
 
-  if (hidden || !isSpriteAssetUrl(src)) return null;
+  useEffect(() => {
+    setSrc(source.primary);
+    setHidden(false);
+  }, [source.primary, source.fallback]);
+
+  const onError = useCallback(() => {
+    if (source.fallback && src === source.primary) {
+      setSrc(source.fallback);
+      return;
+    }
+    setHidden(true);
+  }, [source, src]);
+
+  if (hidden || !isConfiguredSpriteHostUrl(src)) return null;
 
   const box =
     compact
@@ -49,9 +63,60 @@ function HostedStillTile({
   );
 }
 
+function HostedGifTile({
+  source,
+  compact,
+}: {
+  source: SpriteSource;
+  compact?: boolean;
+}): JSX.Element | null {
+  const [src, setSrc] = useState(source.primary);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    setSrc(source.primary);
+    setHidden(false);
+  }, [source.primary, source.fallback]);
+
+  const onError = useCallback(() => {
+    if (source.fallback && src === source.primary) {
+      setSrc(source.fallback);
+      return;
+    }
+    setHidden(true);
+  }, [source, src]);
+
+  if (hidden || !isConfiguredSpriteHostUrl(src)) return null;
+
+  return (
+    <div
+      className={
+        compact
+          ? "mt-1 flex flex-col gap-1.5 border-t border-zinc-100 pt-3"
+          : "mt-6 flex flex-col items-center gap-1.5 sm:items-start"
+      }
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+        Battle (animated)
+      </span>
+      {/* GIF: next/image would flatten animation — native img preserves frames */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        className={compact ? "max-h-28 w-auto object-contain" : "max-h-40 w-auto object-contain"}
+        onError={onError}
+      />
+    </div>
+  );
+}
+
 /**
  * Sprites: three still PNGs (next/image) + one animated GIF (native img).
- * Renders null when `NEXT_PUBLIC_SPRITE_ASSET_BASE_URL` is unset.
+ * Renders null when no sprite base env is set.
+ *
+ * If `NEXT_PUBLIC_SPRITE_FALLBACK_ASSET_BASE_URL` is set (same path layout as PokeAPI
+ * `sprites/`), stills and GIF retry that origin when the primary (e.g. tunnel) fails.
  *
  * **`compact`** — embed beside profile data (narrow column); omit outer card chrome.
  */
@@ -62,13 +127,10 @@ export function PokemonSpritePackPanel({
   nationalDex: number;
   compact?: boolean;
 }): JSX.Element | null {
-  if (!spriteAssetBaseUrl()) return null;
+  if (!spritePackUiEnabled()) return null;
 
-  const urls = buildSpritePackUrls(nationalDex);
-  if (!urls) return null;
-
-  const [gifHidden, setGifHidden] = useState(false);
-  const gifSrc = urls.showdownGif;
+  const sources = buildSpritePackSources(nationalDex);
+  if (!sources) return null;
 
   const stillSizes = compact ? "96px" : "128px";
 
@@ -92,7 +154,8 @@ export function PokemonSpritePackPanel({
       </h2>
       {!compact && (
         <p className="mb-4 text-xs text-zinc-500">
-          Local assets (PokeAPI/sprites layout). Tiles hide if a file is missing.
+          Local or tunneled assets (PokeAPI/sprites layout). Optional public mirror when
+          primary host errors. Tiles hide if no URL loads.
         </p>
       )}
       <div
@@ -104,39 +167,19 @@ export function PokemonSpritePackPanel({
       >
         <HostedStillTile
           label="Official"
-          src={urls.officialArtwork}
+          source={sources.officialArtwork}
           sizes={stillSizes}
           compact={compact}
         />
-        <HostedStillTile label="Home" src={urls.home} sizes={stillSizes} compact={compact} />
+        <HostedStillTile label="Home" source={sources.home} sizes={stillSizes} compact={compact} />
         <HostedStillTile
           label="Classic"
-          src={urls.defaultSprite}
+          source={sources.defaultSprite}
           sizes={stillSizes}
           compact={compact}
         />
       </div>
-      {!gifHidden && isSpriteAssetUrl(gifSrc) && (
-        <div
-          className={
-            compact
-              ? "mt-1 flex flex-col gap-1.5 border-t border-zinc-100 pt-3"
-              : "mt-6 flex flex-col items-center gap-1.5 sm:items-start"
-          }
-        >
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-            Battle (animated)
-          </span>
-          {/* GIF: next/image would flatten animation — native img preserves frames */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={gifSrc}
-            alt=""
-            className={compact ? "max-h-28 w-auto object-contain" : "max-h-40 w-auto object-contain"}
-            onError={() => setGifHidden(true)}
-          />
-        </div>
-      )}
+      <HostedGifTile source={sources.showdownGif} compact={compact} />
     </section>
   );
 }

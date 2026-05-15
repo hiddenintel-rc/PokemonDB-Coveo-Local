@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
 
-function spriteAssetRemotePattern():
-  | { protocol: "http" | "https"; hostname: string; port?: string; pathname: string }
-  | undefined {
-  const raw = process.env.NEXT_PUBLIC_SPRITE_ASSET_BASE_URL?.trim();
+type SpriteRemotePattern = {
+  protocol: "http" | "https";
+  hostname: string;
+  port?: string;
+  pathname: string;
+};
+
+function spriteRemotePatternFromEnv(envName: string): SpriteRemotePattern | undefined {
+  const raw = process.env[envName]?.trim();
   if (!raw) return undefined;
   try {
     const u = new URL(raw);
@@ -19,19 +24,22 @@ function spriteAssetRemotePattern():
   }
 }
 
-const spritePattern = spriteAssetRemotePattern();
+const spritePattern = spriteRemotePatternFromEnv("NEXT_PUBLIC_SPRITE_ASSET_BASE_URL");
+const spriteFallbackPattern = spriteRemotePatternFromEnv(
+  "NEXT_PUBLIC_SPRITE_FALLBACK_ASSET_BASE_URL",
+);
 
 /** Default local sprite static host (see `tools/local-sprite-server`). */
-const DEV_SPRITE_REMOTE_PATTERN = {
-  protocol: "http" as const,
+const DEV_SPRITE_REMOTE_PATTERN: SpriteRemotePattern = {
+  protocol: "http",
   hostname: "127.0.0.1",
   port: "8787",
   pathname: "/**",
 };
 
-function isSameRemotePattern(
-  a: { protocol: string; hostname: string; port?: string; pathname: string },
-  b: typeof DEV_SPRITE_REMOTE_PATTERN,
+function remotePatternsEqual(
+  a: SpriteRemotePattern,
+  b: SpriteRemotePattern,
 ): boolean {
   return (
     a.protocol === b.protocol &&
@@ -39,6 +47,13 @@ function isSameRemotePattern(
     (a.port ?? "") === (b.port ?? "") &&
     a.pathname === b.pathname
   );
+}
+
+const spriteRemotePatterns: SpriteRemotePattern[] = [];
+for (const p of [spritePattern, spriteFallbackPattern]) {
+  if (!p) continue;
+  if (spriteRemotePatterns.some((q) => remotePatternsEqual(q, p))) continue;
+  spriteRemotePatterns.push(p);
 }
 
 const nextConfig: NextConfig = {
@@ -67,13 +82,13 @@ const nextConfig: NextConfig = {
       // `next.config` is evaluated before `.env.local` is always visible here; hard-code
       // the usual local sprite port so `next/image` works without a full dev-server restart dance.
       ...(process.env.NODE_ENV === "development" ? [DEV_SPRITE_REMOTE_PATTERN] : []),
-      ...(spritePattern &&
-      !(
-        process.env.NODE_ENV === "development" &&
-        isSameRemotePattern(spritePattern, DEV_SPRITE_REMOTE_PATTERN)
-      )
-        ? [spritePattern]
-        : []),
+      ...spriteRemotePatterns.filter(
+        (p) =>
+          !(
+            process.env.NODE_ENV === "development" &&
+            remotePatternsEqual(p, DEV_SPRITE_REMOTE_PATTERN)
+          ),
+      ),
     ],
   },
   async headers() {

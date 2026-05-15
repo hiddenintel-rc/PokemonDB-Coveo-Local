@@ -28,19 +28,27 @@ function generateNonce(): string {
  *
  * If the Admin Console shows a different region host after a migration, add it here (or rely on `*.cloud.coveo.com` if it matches).
  */
-function spriteOriginForImgSrc(): string {
-  const raw = process.env.NEXT_PUBLIC_SPRITE_ASSET_BASE_URL?.trim();
-  if (!raw) return "";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
+function spriteOriginsForImgSrc(): string {
+  const origins: string[] = [];
+  for (const key of [
+    "NEXT_PUBLIC_SPRITE_ASSET_BASE_URL",
+    "NEXT_PUBLIC_SPRITE_FALLBACK_ASSET_BASE_URL",
+  ] as const) {
+    const raw = process.env[key]?.trim();
+    if (!raw) continue;
+    try {
+      const o = new URL(raw).origin;
+      if (!origins.includes(o)) origins.push(o);
+    } catch {
+      /* skip */
+    }
   }
+  return origins.join(" ");
 }
 
 function contentSecurityPolicy(n: string): string {
   const isDev = process.env.NODE_ENV === "development";
-  const spriteOrigin = spriteOriginForImgSrc();
+  const spriteOrigin = spriteOriginsForImgSrc();
 
   const coveoConnect =
     "https://*.cloud.coveo.com " +
